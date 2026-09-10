@@ -13,10 +13,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: "Install validation dependencies"
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libxml2-utils python3-lxml
+
       - name: "Configure and build"
         run: |
           cmake . -B build -DFMU4CPP_BUILD_TESTS=ON
           cmake --build build
+
+      - name: "Validate FMUs"
+        run: |
+          python3 scripts/validate_fmu.py --dir build/models --require-fmus -v
 
       - name: "Download fmusim"
         run: |
@@ -42,7 +51,8 @@ jobs:
           done < <(find ${{ github.workspace }}/build/models -type f -name '*.fmu' -print0 2>/dev/null || true)
       
           if [ "$found" -eq 0 ]; then
-            echo "No FMUs found under `build/models`, skipping fmusim run"
+            echo "Error: No FMUs found under build/models"
+            exit 1
           fi
 
       - name: "Test"
@@ -60,10 +70,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: "Install validation dependencies"
+        run: |
+          python -m pip install --upgrade pip lxml
+
       - name: "Configure and build"
         run: |
           cmake . -B build -DFMU4CPP_BUILD_TESTS=ON -A x64 
           cmake --build build --config Release
+
+      - name: "Validate FMUs"
+        run: |
+          python scripts/validate_fmu.py --dir "${{ github.workspace }}/build/models" --require-fmus -v
 
       - name: "Download fmusim"
         shell: pwsh
@@ -81,8 +99,8 @@ jobs:
         run: |
           $fmus = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\build\models" -Recurse -Filter '*.fmu' -File -ErrorAction SilentlyContinue
           if (-not $fmus -or $fmus.Count -eq 0) {
-            Write-Host "No FMUs found under `build/models`, skipping fmusim run"
-            exit 0
+            Write-Error "Error: No FMUs found under build/models"
+            exit 1
           }
           foreach ($f in $fmus) {
             Write-Host "Checking FMU: $($f.FullName) ($($f.Name))"

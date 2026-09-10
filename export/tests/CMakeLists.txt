@@ -42,3 +42,24 @@ make_generic_test(test_resource test_resource.cpp)
 
 add_subdirectory(fmi2)
 add_subdirectory(fmi3)
+
+# Build real FMU packages for test models
+generateFMU(Identity
+        FMI_VERSIONS fmi2 fmi3
+        SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/models/identity.cpp"
+        INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/models"
+        DESTINATION "${CMAKE_BINARY_DIR}/models"
+)
+
+generateFMU(BouncingBall
+        FMI_VERSIONS fmi2 fmi3
+        SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/models/bouncing_ball.cpp"
+        INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/models"
+        DESTINATION "${CMAKE_BINARY_DIR}/models"
+)
+
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+add_test(NAME validate_fmus
+        COMMAND ${Python3_EXECUTABLE} "${_fmu4cpp_root}/scripts/validate_fmu.py" --dir "${CMAKE_BINARY_DIR}/models" --require-fmus -v
+)

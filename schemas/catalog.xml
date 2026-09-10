@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<!DOCTYPE catalog PUBLIC "-//OASIS//DTD Entity Resolution XML Catalog V1.0//EN" "http://www.oasis-open.org/committees/entity/spec-2001-08-06/catalog.dtd">
+<catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">
+  <rewriteURI uriStartString="https://raw.githubusercontent.com/modelica/fmi-standard/v3.0.2/schema/" rewritePrefix="fmi3/"/>
+  <rewriteURI uriStartString="https://raw.githubusercontent.com/modelica/fmi-standard/v3.0.1/schema/" rewritePrefix="fmi3/"/>
+  <rewriteURI uriStartString="https://raw.githubusercontent.com/modelica/fmi-standard/v3.0/schema/" rewritePrefix="fmi3/"/>
+  <rewriteURI uriStartString="https://raw.githubusercontent.com/modelica/fmi-standard/v2.0.4/schema/" rewritePrefix="fmi2/"/>
+  <rewriteURI uriStartString="https://raw.githubusercontent.com/modelica/fmi-standard/v2.0/schema/" rewritePrefix="fmi2/"/>
+</catalog>
