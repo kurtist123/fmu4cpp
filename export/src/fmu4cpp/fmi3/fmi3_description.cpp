@@ -1,4 +1,3 @@
-
 #include "fmu4cpp/fmu_base.hpp"
 #include "fmu4cpp/lib_info.hpp"
 #include "fmu4cpp/time.hpp"
@@ -38,6 +37,22 @@ namespace {
         return out;
     }
 
+    static std::string escape_xml(const std::string &data) {
+        std::string buffer;
+        buffer.reserve(data.size());
+        for (char c : data) {
+            switch (c) {
+                case '&':  buffer.append("&amp;");  break;
+                case '"': buffer.append("&quot;"); break;
+                case '\'': buffer.append("&apos;"); break;
+                case '<':  buffer.append("&lt;");   break;
+                case '>':  buffer.append("&gt;");   break;
+                default:   buffer.push_back(c);     break;
+            }
+        }
+        return buffer;
+    }
+
 }// namespace
 
 
@@ -47,19 +62,19 @@ std::string fmu_base::make_description() const {
     std::stringstream ss;
     ss << R"(<?xml version="1.0" encoding="UTF-8"?>)" << "\n"
        << "<fmiModelDescription fmiVersion=\"3.0\"\n"
-       << "\tmodelName=\"" << m.modelName << "\"\n"
+       << "\tmodelName=\"" << escape_xml(m.modelName) << "\"\n"
        << "\tinstantiationToken=\"" << guid() << "\"\n"
        << "\tgenerationTool=\"fmu4cpp v" << to_string(library_version()) << "\"\n"
        << "\tgenerationDateAndTime=\"" << now() << "\"\n"
-       << "\tdescription=\"" << m.description << "\"\n"
-       << "\tauthor=\"" << m.author << "\"\n"
-       << "\tvariableNamingConvention=\"" << m.variableNamingConvention << "\""
+       << "\tdescription=\"" << escape_xml(m.description) << "\"\n"
+       << "\tauthor=\"" << escape_xml(m.author) << "\"\n"
+       << "\tvariableNamingConvention=\"" << escape_xml(m.variableNamingConvention) << "\""
        << ">\n\n";
 
     ss << std::boolalpha
        << "\t<CoSimulation\n"
        << "\t\tneedsExecutionTool=\"" << m.needsExecutionTool << "\"\n"
-       << "\t\tmodelIdentifier=\"" << model_identifier() << "\"\n"
+       << "\t\tmodelIdentifier=\"" << escape_xml(model_identifier()) << "\"\n"
        << "\t\tcanHandleVariableCommunicationStepSize=\"" << m.canHandleVariableCommunicationStepSize << "\"\n"
        << "\t\tcanBeInstantiatedOnlyOncePerProcess=\"" << m.canBeInstantiatedOnlyOncePerProcess << "\"\n"
        << "\t\tcanGetAndSetFMUstate=\"" << m.canGetAndSetFMUstate << "\"\n"
@@ -99,7 +114,7 @@ std::string fmu_base::make_description() const {
         ss << "\t\t<!--"
            << "index=" << v->index() << "-->\n"
            << "\t\t<" << type(v) << " name=\""
-           << v->name() << "\" valueReference=\"" << v->value_reference() << "\""
+           << escape_xml(v->name()) << "\" valueReference=\"" << v->value_reference() << "\""
            << " causality=\"" << to_string(v->causality()) << "\"";
 
         if (variability) {
@@ -110,75 +125,73 @@ std::string fmu_base::make_description() const {
         }
 
         if (auto desc = v->getDescription(); !desc.empty()) {
-            ss << " description=\"" << desc << "\"";
+            ss << " description=\"" << escape_xml(desc) << "\"";
         }
 
         bool with_start = requires_start(*v);
         if (auto i = dynamic_cast<const IntVariable *>(v)) {
-
             if (with_start) {
                 ss << " start=\"" << i->get() << "\"";
             }
-
+            if (const auto min = i->getMin()) {
+                ss << " min=\"" << *min << "\"";
+            }
+            if (const auto max = i->getMax()) {
+                ss << " max=\"" << *max << "\"";
+            }
         } else if (auto r = dynamic_cast<const RealVariable *>(v)) {
-
             if (with_start) {
                 ss << " start=\"" << r->get() << "\"";
             }
-            const auto min = r->getMin();
-            const auto max = r->getMax();
-            if (min && max) {
-                ss << " min=\"" << *min << "\" max=\"" << *max << "\"";
+            if (const auto unit = r->getUnit()) {
+                ss << " unit=\"" << escape_xml(*unit) << "\"";
             }
-
+            if (const auto min = r->getMin()) {
+                ss << " min=\"" << *min << "\"";
+            }
+            if (const auto max = r->getMax()) {
+                ss << " max=\"" << *max << "\"";
+            }
         } else if (auto b = dynamic_cast<const BoolVariable *>(v)) {
-
             if (with_start) {
                 ss << " start=\"" << b->get() << "\"";
             }
-
-        } else if (auto s = dynamic_cast<const StringVariable *>(v)) {
-
-            if (with_start) {
-                ss << ">\n";
-                ss << "\t\t\t<Dimension start=\"1\"/>\n";
-                ss << "\t\t\t<Start value=\"" << s->get() << "\"/>\n";
-            }
-        } else if (auto bin = dynamic_cast<const BinaryVariable *>(v)) {
-            if (with_start) {
-                ss << ">\n";
-                ss << "\t\t\t<Dimension start=\"1\"/>\n";
-                ss << "\t\t\t<Start value=\"" << hex_encode(bin->get()) << "\"/>\n";
-            }
         }
 
-        if (with_start) {
-            if (dynamic_cast<const StringVariable *>(v)) {
-                ss << "\t\t</String>\n";
-            } else if (dynamic_cast<const BinaryVariable *>(v)) {
-                ss << "\t\t</Binary>\n";
-            } else {
-                ss << "/>\n";
+        const bool is_str_with_start = (dynamic_cast<const StringVariable *>(v) != nullptr) && with_start;
+        const bool is_bin_with_start = (dynamic_cast<const BinaryVariable *>(v) != nullptr) && with_start;
+        const bool has_children = !annotations.empty() || is_str_with_start || is_bin_with_start;
+
+        if (has_children) {
+            ss << ">\n";
+            if (!annotations.empty()) {
+                ss << "\t\t\t<Annotations>\n";
+                for (const auto &annotation: annotations) {
+                    std::string indentedAnnotation = indent_multiline_string(annotation, 4);
+                    ss << indentedAnnotation << "\n";
+                }
+                ss << "\t\t\t</Annotations>\n";
             }
+            if (auto s = dynamic_cast<const StringVariable *>(v)) {
+                if (with_start) {
+                    ss << "\t\t\t<Start value=\"" << escape_xml(s->get()) << "\"/>\n";
+                }
+            } else if (auto bin = dynamic_cast<const BinaryVariable *>(v)) {
+                if (with_start) {
+                    ss << "\t\t\t<Start value=\"" << hex_encode(bin->get()) << "\"/>\n";
+                }
+            }
+            ss << "\t\t</" << type(v) << ">\n";
         } else {
             ss << "/>\n";
         }
-
-        // if (!annotations.empty()) {
-        //     ss << "\t\t\t<Annotations>\n";
-        //     for (const auto &annotation: annotations) {
-        //         std::string indentedAnnotation = indent_multiline_string(annotation, 4);
-        //         ss << indentedAnnotation << "\n";
-        //     }
-        //     ss << "\t\t\t</Annotations>\n";
-        // }
     }
 
     ss << "\t</ModelVariables>\n\n";
 
     ss << "\t<ModelStructure>\n";
 
-    const auto unknowns = collect(integers_, reals_, booleans_, strings_, [](auto &v) {
+    const auto unknowns = collect(integers_, reals_, booleans_, strings_, binary_, [](auto &v) {
         return v.causality() == causality_t::OUTPUT;
     });
 
@@ -206,26 +219,26 @@ std::string fmu_base::make_description() const {
         }
     }
 
-    const auto initialUnknowns = collect(integers_, reals_, booleans_, strings_, [](auto &v) {
+    const auto initialUnknowns = collect(integers_, reals_, booleans_, strings_, binary_, [](auto &v) {
         return (v.causality() == causality_t::OUTPUT && v.initial() == initial_t::APPROX || v.initial() == initial_t::CALCULATED) || v.causality() == causality_t::CALCULATED_PARAMETER;
     });
     if (!initialUnknowns.empty()) {
         for (const auto &v: initialUnknowns) {
-            ss << "\t\t<InitialUnknown valueReference=\"" << v->index() - 1 << "\"";
+            ss << "\t\t<InitialUnknown valueReference=\"" << v->value_reference() << "\"";
             ss << "/>\n";
         }
     }
 
     ss << "\t</ModelStructure>\n\n";
 
-    // if (!m.vendorAnnotations.empty()) {
-    //     ss << "\t<Annotations>\n";
-    //     for (const auto &annotation: m.vendorAnnotations) {
-    //         std::string indentedAnnotation = indent_multiline_string(annotation, 2);
-    //         ss << indentedAnnotation << "\n";
-    //     }
-    //     ss << "\t</Annotations>\n\n";
-    // }
+    if (!m.vendorAnnotations.empty()) {
+        ss << "\t<Annotations>\n";
+        for (const auto &annotation: m.vendorAnnotations) {
+            std::string indentedAnnotation = indent_multiline_string(annotation, 2);
+            ss << indentedAnnotation << "\n";
+        }
+        ss << "\t</Annotations>\n\n";
+    }
 
     ss << "</fmiModelDescription>\n";
 

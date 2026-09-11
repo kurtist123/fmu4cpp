@@ -130,3 +130,61 @@ TEST_CASE("test_binary") {
 
     fmi3FreeInstance(c);
 }
+
+TEST_CASE("test_model_description_conformance") {
+
+    class DescriptionModel : public fmu4cpp::fmu_base {
+    public:
+        DescriptionModel() : fmu_base({}) {
+            register_integer("intWithMin", &iVal_).setMin(-10);
+            register_integer("intWithMax", &iVal_).setMax(100);
+            register_real("realWithUnitAndMin", &rVal_).setUnit("m/s").setMin(0.0);
+            register_string("strSpecial", &sVal_).setCausality(fmu4cpp::causality_t::INPUT);
+            register_binary("binOut", &binVal_)
+                    .setCausality(fmu4cpp::causality_t::OUTPUT)
+                    .setInitial(fmu4cpp::initial_t::CALCULATED);
+
+            auto &annotatedVar = register_real("annotatedReal", &rVal_);
+            annotatedVar.addAnnotation("<Annotation type=\"org.example.display\"><Color>blue</Color></Annotation>");
+        }
+
+        bool do_step(double) override { return true; }
+
+    private:
+        int iVal_ = 0;
+        double rVal_ = 0.0;
+        std::string sVal_ = "test & <test> \"quoted\" 'apostrophe'";
+        std::vector<uint8_t> binVal_ = {0xAA, 0xBB};
+    };
+
+    DescriptionModel dm;
+    const std::string xml = dm.make_description();
+
+    // Verify independent min / max
+    CHECK(xml.find("min=\"-10\"") != std::string::npos);
+    CHECK(xml.find("max=\"100\"") != std::string::npos);
+
+    // Verify Real unit metadata
+    CHECK(xml.find("unit=\"m/s\"") != std::string::npos);
+
+    // Verify XML escaping of special characters
+    CHECK(xml.find("&amp;") != std::string::npos);
+    CHECK(xml.find("&lt;test&gt;") != std::string::npos);
+    CHECK(xml.find("&quot;quoted&quot;") != std::string::npos);
+    CHECK(xml.find("&apos;apostrophe&apos;") != std::string::npos);
+
+    // Verify scalar String has no Dimension element
+    CHECK(xml.find("<Dimension") == std::string::npos);
+
+    // Verify binary output is present in ModelStructure Output and InitialUnknown
+    const auto binVr = dm.get_binary_variable("binOut")->value_reference();
+    std::string expectedOutput = "<Output valueReference=\"" + std::to_string(binVr) + "\"";
+    std::string expectedInitUnknown = "<InitialUnknown valueReference=\"" + std::to_string(binVr) + "\"";
+    CHECK(xml.find(expectedOutput) != std::string::npos);
+    CHECK(xml.find(expectedInitUnknown) != std::string::npos);
+
+    // Verify annotations
+    CHECK(xml.find("<Annotations>") != std::string::npos);
+    CHECK(xml.find("org.example.display") != std::string::npos);
+}
+

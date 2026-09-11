@@ -287,7 +287,7 @@ BinaryVariable &fmu_base::register_binary(const std::string &name, const std::fu
         ss << str;
     }
 
-    const auto vars = collect(integers_, reals_, booleans_, strings_);
+    const auto vars = collect(integers_, reals_, booleans_, strings_, binary_);
     for (const auto &v: vars) {
         ss << v->name();
         ss << std::to_string(v->index());
@@ -312,7 +312,7 @@ void fmu_base::debugLog(const fmiStatus s, const std::string &message) const {
 
 std::vector<unsigned> fmu_base::get_value_refs() const {
     std::vector<unsigned int> indices;
-    const auto allVars = collect(integers_, reals_, booleans_, strings_);
+    const auto allVars = collect(integers_, reals_, booleans_, strings_, binary_);
     indices.reserve(allVars.size());
     for (const auto &v: allVars) {
         indices.emplace_back(v->value_reference());
