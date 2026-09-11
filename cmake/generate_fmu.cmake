@@ -132,7 +132,7 @@ endfunction()
 macro(_package_fmu)
     set(TAR_INPUTS "${modelOutputDir}/binaries" "${modelOutputDir}/modelDescription.xml")
     if (FMU_WITH_SOURCES AND fmiVersion STREQUAL "fmi3")
-        list(APPEND TAR_INPUTS "${modelOutputDir}/sources" "${modelOutputDir}/sources/buildDescription.xml")
+        list(APPEND TAR_INPUTS "${modelOutputDir}/sources")
     endif ()
 
     if (NOT FMU_DOC_FOLDER STREQUAL "")
@@ -217,7 +217,7 @@ macro(_include_sources_in_fmu)
         set(SOURCE_SET "${SOURCE_SET}\t\t\t<SourceFile name=\"${rel_path}\"/>\n")
     endforeach ()
 
-    #write buildDescription.xml
+    # write buildDescription.xml
     file(WRITE "${modelOutputDir}/sources/buildDescription.xml"
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
             "<fmiBuildDescription fmiVersion=\"3.0\">\n"
