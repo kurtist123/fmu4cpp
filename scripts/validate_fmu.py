@@ -245,8 +245,47 @@ def validate_fmu_archive(fmu_path, schemas_dir=None, verbose=False):
                         if not ok:
                             errors.append(f"terminalsAndIcons.xml validation failed: {msg}")
                         elif verbose:
-                            print(f"  [OK] terminalsAndIcons.xml satisfies FMI 3 Terminals schema")
-    
+                            print(
+                                f"  [OK] terminalsAndIcons.xml satisfies FMI 3 Terminals schema"
+                            )
+
+            # 6. Check for buildDescription.xml if sources/ is present
+            build_desc_entry = "sources/buildDescription.xml"
+            if build_desc_entry in namelist:
+                z.extract(build_desc_entry, path=tmpdir_path)
+                bd_path = tmpdir_path / build_desc_entry
+                if is_fmi3:
+                    if schemas_dir:
+                        xsd_bd = schemas_dir / "fmi3" / "fmi3BuildDescription.xsd"
+                        if not xsd_bd.exists():
+                            xsd_bd = schemas_dir / "schema" / "fmi3BuildDescription.xsd"
+                        if xsd_bd.exists():
+                            ok, msg = validate_xml_schema(bd_path, xsd_bd, catalog_path)
+                            if not ok:
+                                errors.append(
+                                    f"sources/buildDescription.xml validation failed: {msg}"
+                                )
+                            elif verbose:
+                                print(
+                                    f"  [OK] sources/buildDescription.xml satisfies FMI 3 BuildDescription schema"
+                                )
+                        else:
+                            warnings.append(
+                                "FMI 3 BuildDescription XSD schema not found for validation"
+                            )
+
+                try:
+                    tree_bd = ET.parse(bd_path)
+                    root_bd = tree_bd.getroot()
+                    for sf in root_bd.findall(".//{*}SourceFile"):
+                        sf_name = sf.attrib.get("name", "")
+                        if sf_name and f"sources/{sf_name}" not in namelist:
+                            errors.append(
+                                f"Source file '{sf_name}' declared in buildDescription.xml not found in archive"
+                            )
+                except Exception as e:
+                    errors.append(f"Failed to inspect buildDescription.xml: {e}")
+
     return len(errors) == 0, errors, warnings
 
 
