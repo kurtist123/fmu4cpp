@@ -31,38 +31,38 @@ void setInt(fmi3Instance c, fmi3ValueReference ref, int value) {
 
 double readReal(fmi3Instance c, fmi3ValueReference ref) {
     fmi3Float64 value;
-    REQUIRE(fmi3GetFloat64(c, &ref, 1, &value, 0) == fmi3OK);
+    REQUIRE(fmi3GetFloat64(c, &ref, 1, &value, 1) == fmi3OK);
 
     return value;
 }
 
 void setReal(fmi3Instance c, fmi3ValueReference ref, double value) {
-    REQUIRE(fmi3SetFloat64(c, &ref, 1, &value, 0) == fmi3OK);
+    REQUIRE(fmi3SetFloat64(c, &ref, 1, &value, 1) == fmi3OK);
 }
 
 bool readBool(fmi3Instance c, fmi3ValueReference ref) {
     fmi3Boolean value;
-    REQUIRE(fmi3GetBoolean(c, &ref, 1, &value, 0) == fmi3OK);
+    REQUIRE(fmi3GetBoolean(c, &ref, 1, &value, 1) == fmi3OK);
 
     return value;
 }
 
 void setBool(fmi3Instance c, fmi3ValueReference ref, bool value) {
     fmi3Boolean value_ = value;
-    REQUIRE(fmi3SetBoolean(c, &ref, 1, &value_, 0) == fmi3OK);
+    REQUIRE(fmi3SetBoolean(c, &ref, 1, &value_, 1) == fmi3OK);
 }
 
 
 std::string readString(fmi3Instance c, fmi3ValueReference ref) {
     fmi3String value;
-    REQUIRE(fmi3GetString(c, &ref, 1, &value, 0) == fmi3OK);
+    REQUIRE(fmi3GetString(c, &ref, 1, &value, 1) == fmi3OK);
 
     return value;
 }
 
 void setString(fmi3Instance c, fmi3ValueReference ref, const std::string &value) {
     fmi3String value_ = value.c_str();
-    REQUIRE(fmi3SetString(c, &ref, 1, &value_, 0) == fmi3OK);
+    REQUIRE(fmi3SetString(c, &ref, 1, &value_, 1) == fmi3OK);
 }
 
 void setOutputFail(fmi3Instance c) {
@@ -72,10 +72,10 @@ void setOutputFail(fmi3Instance c) {
     fmi3Float64 r = 0;
     fmi3Boolean b = fmi3False;
 
-    REQUIRE(fmi3SetInt32(c, &ref, 1, &i, 0) == fmi3Error);
-    REQUIRE(fmi3SetFloat64(c, &ref, 1, &r, 0) == fmi3Error);
-    REQUIRE(fmi3SetString(c, &ref, 1, &s, 0) == fmi3Error);
-    REQUIRE(fmi3SetBoolean(c, &ref, 1, &b, 0) == fmi3Error);
+    REQUIRE(fmi3SetInt32(c, &ref, 1, &i, 1) == fmi3Error);
+    REQUIRE(fmi3SetFloat64(c, &ref, 1, &r, 1) == fmi3Error);
+    REQUIRE(fmi3SetString(c, &ref, 1, &s, 1) == fmi3Error);
+    REQUIRE(fmi3SetBoolean(c, &ref, 1, &b, 1) == fmi3Error);
 }
 
 void fmilogger(fmi3InstanceEnvironment, fmi3Status status, fmi3String /*category*/, fmi3String message) {
