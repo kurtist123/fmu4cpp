@@ -11,43 +11,49 @@ using namespace fmu4cpp;
 
 namespace {
 
-    std::string type(const VariableBase *v) {
-        if (dynamic_cast<const IntVariable *>(v)) {
-            return "Int32";
-        } else if (dynamic_cast<const RealVariable *>(v)) {
-            return "Float64";
-        } else if (dynamic_cast<const StringVariable *>(v)) {
-            return "String";
-        } else if (dynamic_cast<const BoolVariable *>(v)) {
-            return "Boolean";
-        } else if (dynamic_cast<const BinaryVariable *>(v)) {
-            return "Binary";
+    bool is_integer_type(data_type dt) {
+        switch (dt) {
+            case data_type::INT8:
+            case data_type::UINT8:
+            case data_type::INT16:
+            case data_type::UINT16:
+            case data_type::INT32:
+            case data_type::UINT32:
+            case data_type::INT64:
+            case data_type::UINT64:
+                return true;
+            default:
+                return false;
         }
-        throw std::runtime_error("Unknown variable type");
     }
 
-    static std::string hex_encode(const std::vector<unsigned char> &in) {
-        static const char hex[] = "0123456789ABCDEF";
-        std::string out;
-        out.reserve(in.size() * 2);
-        for (unsigned char c : in) {
-            out.push_back(hex[c >> 4]);
-            out.push_back(hex[c & 0x0F]);
-        }
-        return out;
+    bool is_float_type(data_type dt) {
+        return dt == data_type::FLOAT32 || dt == data_type::FLOAT64;
     }
 
     static std::string escape_xml(const std::string &data) {
         std::string buffer;
         buffer.reserve(data.size());
-        for (char c : data) {
+        for (char c: data) {
             switch (c) {
-                case '&':  buffer.append("&amp;");  break;
-                case '"': buffer.append("&quot;"); break;
-                case '\'': buffer.append("&apos;"); break;
-                case '<':  buffer.append("&lt;");   break;
-                case '>':  buffer.append("&gt;");   break;
-                default:   buffer.push_back(c);     break;
+                case '&':
+                    buffer.append("&amp;");
+                    break;
+                case '"':
+                    buffer.append("&quot;");
+                    break;
+                case '\'':
+                    buffer.append("&apos;");
+                    break;
+                case '<':
+                    buffer.append("&lt;");
+                    break;
+                case '>':
+                    buffer.append("&gt;");
+                    break;
+                default:
+                    buffer.push_back(c);
+                    break;
             }
         }
         return buffer;
@@ -100,11 +106,15 @@ std::string fmu_base::make_description() const {
     ss << "\t<ModelVariables>\n";
 
     const auto allVars = [&] {
-        auto allVars = collect(integers_, reals_, booleans_, strings_, binary_);
-        std::sort(allVars.begin(), allVars.end(), [](const VariableBase *v1, const VariableBase *v2) {
+        std::vector<const VariableBase *> vars;
+        vars.reserve(variables_.size());
+        for (const auto &v: variables_) {
+            vars.emplace_back(v.get());
+        }
+        std::sort(vars.begin(), vars.end(), [](const VariableBase *v1, const VariableBase *v2) {
             return v1->index() < v2->index();
         });
-        return allVars;
+        return vars;
     }();
 
     for (const auto &v: allVars) {
@@ -113,7 +123,7 @@ std::string fmu_base::make_description() const {
         const auto annotations = v->getAnnotations();
         ss << "\t\t<!--"
            << "index=" << v->index() << "-->\n"
-           << "\t\t<" << type(v) << " name=\""
+           << "\t\t<" << v->type_name() << " name=\""
            << escape_xml(v->name()) << "\" valueReference=\"" << v->value_reference() << "\""
            << " causality=\"" << to_string(v->causality()) << "\"";
 
@@ -129,37 +139,38 @@ std::string fmu_base::make_description() const {
         }
 
         bool with_start = requires_start(*v);
-        if (auto i = dynamic_cast<const IntVariable *>(v)) {
-            if (with_start) {
-                ss << " start=\"" << i->get() << "\"";
+        const auto startStr = v->get_start_as_string();
+        if (is_integer_type(v->type())) {
+            if (with_start && startStr) {
+                ss << " start=\"" << *startStr << "\"";
             }
-            if (const auto min = i->getMin()) {
+            if (const auto min = v->get_min_as_string()) {
                 ss << " min=\"" << *min << "\"";
             }
-            if (const auto max = i->getMax()) {
+            if (const auto max = v->get_max_as_string()) {
                 ss << " max=\"" << *max << "\"";
             }
-        } else if (auto r = dynamic_cast<const RealVariable *>(v)) {
-            if (with_start) {
-                ss << " start=\"" << r->get() << "\"";
+        } else if (is_float_type(v->type())) {
+            if (with_start && startStr) {
+                ss << " start=\"" << *startStr << "\"";
             }
-            if (const auto unit = r->getUnit()) {
+            if (const auto unit = v->getUnit()) {
                 ss << " unit=\"" << escape_xml(*unit) << "\"";
             }
-            if (const auto min = r->getMin()) {
+            if (const auto min = v->get_min_as_string()) {
                 ss << " min=\"" << *min << "\"";
             }
-            if (const auto max = r->getMax()) {
+            if (const auto max = v->get_max_as_string()) {
                 ss << " max=\"" << *max << "\"";
             }
-        } else if (auto b = dynamic_cast<const BoolVariable *>(v)) {
-            if (with_start) {
-                ss << " start=\"" << b->get() << "\"";
+        } else if (v->type() == data_type::BOOLEAN) {
+            if (with_start && startStr) {
+                ss << " start=\"" << *startStr << "\"";
             }
         }
 
-        const bool is_str_with_start = (dynamic_cast<const StringVariable *>(v) != nullptr) && with_start;
-        const bool is_bin_with_start = (dynamic_cast<const BinaryVariable *>(v) != nullptr) && with_start;
+        const bool is_str_with_start = (v->type() == data_type::STRING) && with_start;
+        const bool is_bin_with_start = (v->type() == data_type::BINARY) && with_start;
         const bool has_children = !annotations.empty() || is_str_with_start || is_bin_with_start;
 
         if (has_children) {
@@ -172,16 +183,12 @@ std::string fmu_base::make_description() const {
                 }
                 ss << "\t\t\t</Annotations>\n";
             }
-            if (auto s = dynamic_cast<const StringVariable *>(v)) {
-                if (with_start) {
-                    ss << "\t\t\t<Start value=\"" << escape_xml(s->get()) << "\"/>\n";
-                }
-            } else if (auto bin = dynamic_cast<const BinaryVariable *>(v)) {
-                if (with_start) {
-                    ss << "\t\t\t<Start value=\"" << hex_encode(bin->get()) << "\"/>\n";
-                }
+            if (is_str_with_start && startStr) {
+                ss << "\t\t\t<Start value=\"" << escape_xml(*startStr) << "\"/>\n";
+            } else if (is_bin_with_start && startStr) {
+                ss << "\t\t\t<Start value=\"" << *startStr << "\"/>\n";
             }
-            ss << "\t\t</" << type(v) << ">\n";
+            ss << "\t\t</" << v->type_name() << ">\n";
         } else {
             ss << "/>\n";
         }
@@ -191,9 +198,12 @@ std::string fmu_base::make_description() const {
 
     ss << "\t<ModelStructure>\n";
 
-    const auto unknowns = collect(integers_, reals_, booleans_, strings_, binary_, [](auto &v) {
-        return v.causality() == causality_t::OUTPUT;
-    });
+    std::vector<const VariableBase *> unknowns;
+    for (const auto &v: variables_) {
+        if (v->causality() == causality_t::OUTPUT) {
+            unknowns.emplace_back(v.get());
+        }
+    }
 
     if (!unknowns.empty()) {
         for (const auto &v: unknowns) {
@@ -219,9 +229,12 @@ std::string fmu_base::make_description() const {
         }
     }
 
-    const auto initialUnknowns = collect(integers_, reals_, booleans_, strings_, binary_, [](auto &v) {
-        return (v.causality() == causality_t::OUTPUT && v.initial() == initial_t::APPROX || v.initial() == initial_t::CALCULATED) || v.causality() == causality_t::CALCULATED_PARAMETER;
-    });
+    std::vector<const VariableBase *> initialUnknowns;
+    for (const auto &v: variables_) {
+        if ((v->causality() == causality_t::OUTPUT && (v->initial() == initial_t::APPROX || v->initial() == initial_t::CALCULATED)) || v->causality() == causality_t::CALCULATED_PARAMETER) {
+            initialUnknowns.emplace_back(v.get());
+        }
+    }
     if (!initialUnknowns.empty()) {
         for (const auto &v: initialUnknowns) {
             ss << "\t\t<InitialUnknown valueReference=\"" << v->value_reference() << "\"";

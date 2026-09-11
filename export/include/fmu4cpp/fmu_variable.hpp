@@ -5,10 +5,14 @@
 #include "variable_access.hpp"
 
 #include <cstdint>
+#include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -39,10 +43,105 @@ namespace fmu4cpp {
         CALCULATED,
     };
 
+    enum class interval_variability_t {
+        CONSTANT,
+        FIXED,
+        CALCULATED,
+        TUNABLE,
+        CHANGING,
+        COUNTDOWN
+    };
+
+    enum class data_type {
+        INT8,
+        UINT8,
+        INT16,
+        UINT16,
+        INT32,
+        UINT32,
+        INT64,
+        UINT64,
+        FLOAT32,
+        FLOAT64,
+        BOOLEAN,
+        STRING,
+        BINARY,
+        CLOCK
+    };
+
     std::string to_string(const causality_t &c);
     std::string to_string(const variability_t &v);
     std::string to_string(const initial_t &i);
+    std::string to_string(const interval_variability_t &iv);
+    std::string to_string(const data_type &dt);
 
+    template<typename T>
+    struct type_to_data_type;
+
+    template<>
+    struct type_to_data_type<int8_t> {
+        static constexpr data_type value = data_type::INT8;
+    };
+    template<>
+    struct type_to_data_type<uint8_t> {
+        static constexpr data_type value = data_type::UINT8;
+    };
+    template<>
+    struct type_to_data_type<int16_t> {
+        static constexpr data_type value = data_type::INT16;
+    };
+    template<>
+    struct type_to_data_type<uint16_t> {
+        static constexpr data_type value = data_type::UINT16;
+    };
+    template<>
+    struct type_to_data_type<int32_t> {
+        static constexpr data_type value = data_type::INT32;
+    };
+    template<>
+    struct type_to_data_type<uint32_t> {
+        static constexpr data_type value = data_type::UINT32;
+    };
+    template<>
+    struct type_to_data_type<int64_t> {
+        static constexpr data_type value = data_type::INT64;
+    };
+    template<>
+    struct type_to_data_type<uint64_t> {
+        static constexpr data_type value = data_type::UINT64;
+    };
+    template<>
+    struct type_to_data_type<float> {
+        static constexpr data_type value = data_type::FLOAT32;
+    };
+    template<>
+    struct type_to_data_type<double> {
+        static constexpr data_type value = data_type::FLOAT64;
+    };
+    template<>
+    struct type_to_data_type<bool> {
+        static constexpr data_type value = data_type::BOOLEAN;
+    };
+    template<>
+    struct type_to_data_type<std::string> {
+        static constexpr data_type value = data_type::STRING;
+    };
+    template<>
+    struct type_to_data_type<BinaryType> {
+        static constexpr data_type value = data_type::BINARY;
+    };
+
+    template<typename T>
+    std::string format_numeric(T val) {
+        if constexpr (std::is_floating_point_v<T>) {
+            std::ostringstream oss;
+            oss.precision(std::numeric_limits<T>::max_digits10);
+            oss << val;
+            return oss.str();
+        } else {
+            return std::to_string(+val);
+        }
+    }
 
     class VariableBase {
 
@@ -53,6 +152,9 @@ namespace fmu4cpp {
         std::vector<std::string> annotations_;
         std::vector<std::string> dependencies_;
         std::string description_;
+        std::optional<std::string> declaredType_;
+        std::vector<size_t> dimensions_;
+        std::vector<unsigned int> clocks_;
 
     public:
         VariableBase(std::string name, unsigned int vr, size_t index)
@@ -99,27 +201,60 @@ namespace fmu4cpp {
 
         virtual ~VariableBase() = default;
 
+        [[nodiscard]] std::optional<std::string> getDeclaredType() const {
+            return declaredType_;
+        }
+
+        [[nodiscard]] const std::vector<size_t> &dimensions() const {
+            return dimensions_;
+        }
+
+        [[nodiscard]] bool is_array() const {
+            return !dimensions_.empty();
+        }
+
+        [[nodiscard]] size_t flattened_size() const {
+            if (dimensions_.empty()) return 1;
+            size_t s = 1;
+            for (size_t d: dimensions_) s *= d;
+            return s;
+        }
+
+        [[nodiscard]] const std::vector<unsigned int> &clocks() const {
+            return clocks_;
+        }
+
+        [[nodiscard]] virtual data_type type() const = 0;
+        [[nodiscard]] virtual std::string type_name() const = 0;
+
+        [[nodiscard]] virtual std::optional<std::string> get_start_as_string() const { return std::nullopt; }
+        [[nodiscard]] virtual std::optional<std::string> get_min_as_string() const { return std::nullopt; }
+        [[nodiscard]] virtual std::optional<std::string> get_max_as_string() const { return std::nullopt; }
+        [[nodiscard]] virtual std::optional<std::string> getUnit() const { return std::nullopt; }
+        [[nodiscard]] virtual std::optional<std::string> getDisplayUnit() const { return std::nullopt; }
+        [[nodiscard]] virtual std::optional<std::string> getQuantity() const { return std::nullopt; }
+
     private:
         std::string name_;
         unsigned int vr_;
         size_t index_;
     };
 
-    template<class T, class V>
-    class Variable : public VariableBase {
+    template<typename T>
+    class TypedVariableBase : public VariableBase {
 
     public:
-        Variable(
-                const std::string &name,
+        TypedVariableBase(
+                std::string name,
                 unsigned int vr, size_t index, T *ptr, const std::function<void()> &onChange)
-            : VariableBase(name, vr, index), access_(std::make_unique<PtrAccess<T>>(ptr, onChange)) {}
+            : VariableBase(std::move(name), vr, index), access_(std::make_unique<PtrAccess<T>>(ptr, onChange)) {}
 
-        Variable(
-                const std::string &name,
+        TypedVariableBase(
+                std::string name,
                 unsigned int vr, size_t index,
                 std::function<T()> getter,
                 std::optional<std::function<void(T)>> setter)
-            : VariableBase(name, vr, index),
+            : VariableBase(std::move(name), vr, index),
               access_(std::make_unique<LambdaAccess<T>>(std::move(getter), std::move(setter))) {}
 
         [[nodiscard]] T get() const {
@@ -135,187 +270,354 @@ namespace fmu4cpp {
             access_->set(value);
         }
 
-        V &setDescription(const std::string &description) {
-            description_ = description;
-            return *static_cast<V *>(this);
+        void read_values(T *dest, size_t count) const {
+            access_->read(dest, count);
         }
 
-        V &setCausality(causality_t causality) {
-            causality_ = causality;
-            return *static_cast<V *>(this);
-        }
-
-        V &setVariability(variability_t variability) {
-            variability_ = variability;
-            return *static_cast<V *>(this);
-        }
-
-        V &setInitial(initial_t initial) {
-            initial_ = initial;
-            return *static_cast<V *>(this);
-        }
-
-        V &setDependencies(const std::vector<std::string> &dependencies) {
-            for (auto i: dependencies) {
-                dependencies_.emplace_back(i);
+        void write_values(const T *src, size_t count) {
+            if (causality_ == causality_t::LOCAL || (causality_ == causality_t::OUTPUT && initial_ != initial_t::EXACT) || causality_ == causality_t::INDEPENDENT) {
+                throw std::logic_error("Cannot set value for variable with causality: " + to_string(causality_));
             }
-            return *static_cast<V *>(this);
-        }
-
-        V &setAnnotations(const std::vector<std::string> &annotations) {
-            for (auto i: annotations) {
-                annotations_.emplace_back(i);
-            }
-            return *static_cast<V *>(this);
-        }
-
-        V &addAnnotation(const std::string &annotation) {
-            annotations_.emplace_back(annotation);
-            return *static_cast<V *>(this);
+            access_->write(src, count);
         }
 
     private:
         std::shared_ptr<VariableAccess<T>> access_;
     };
 
-    class IntVariable final : public Variable<int, IntVariable> {
+    template<class T, class V>
+    class Variable : public TypedVariableBase<T> {
 
     public:
-        IntVariable(
-                const std::string &name,
-                unsigned int vr, size_t index, int *ptr, const std::function<void()> &onChange)
-            : Variable(name, vr, index, ptr, onChange) {}
+        using TypedVariableBase<T>::TypedVariableBase;
 
-        IntVariable(
-                const std::string &name,
-                unsigned int vr, size_t index,
-                const std::function<int()> &getter,
-                const std::optional<std::function<void(int)>> &setter)
-            : Variable(name, vr, index, getter, setter) {}
-
-        [[nodiscard]] std::optional<int> getMin() const {
-            return min_;
+        V &setDescription(const std::string &description) {
+            this->description_ = description;
+            return *static_cast<V *>(this);
         }
 
-        [[nodiscard]] std::optional<int> getMax() const {
-            return max_;
+        V &setCausality(causality_t causality) {
+            this->causality_ = causality;
+            return *static_cast<V *>(this);
         }
 
-        IntVariable &setMin(const std::optional<int> &min) {
-            min_ = min;
-            return *this;
+        V &setVariability(variability_t variability) {
+            this->variability_ = variability;
+            return *static_cast<V *>(this);
         }
 
-        IntVariable &setMax(const std::optional<int> &max) {
-            max_ = max;
-            return *this;
+        V &setInitial(initial_t initial) {
+            this->initial_ = initial;
+            return *static_cast<V *>(this);
         }
 
-    private:
-        std::optional<int> min_;
-        std::optional<int> max_;
+        V &setDependencies(const std::vector<std::string> &dependencies) {
+            for (const auto &i: dependencies) {
+                this->dependencies_.emplace_back(i);
+            }
+            return *static_cast<V *>(this);
+        }
+
+        V &setAnnotations(const std::vector<std::string> &annotations) {
+            for (const auto &i: annotations) {
+                this->annotations_.emplace_back(i);
+            }
+            return *static_cast<V *>(this);
+        }
+
+        V &addAnnotation(const std::string &annotation) {
+            this->annotations_.emplace_back(annotation);
+            return *static_cast<V *>(this);
+        }
+
+        V &setDeclaredType(const std::string &declaredType) {
+            this->declaredType_ = declaredType;
+            return *static_cast<V *>(this);
+        }
+
+        V &setDimensions(std::vector<size_t> dimensions) {
+            this->dimensions_ = std::move(dimensions);
+            return *static_cast<V *>(this);
+        }
+
+        V &setClocks(std::vector<unsigned int> clocks) {
+            this->clocks_ = std::move(clocks);
+            return *static_cast<V *>(this);
+        }
     };
 
-    class RealVariable final : public Variable<double, RealVariable> {
+    template<class T, class V>
+    class NumericVariable : public Variable<T, V> {
 
     public:
-        RealVariable(
-                const std::string &name,
-                unsigned int vr, size_t index, double *ptr, const std::function<void()> &onChange)
-            : Variable(name, vr, index, ptr, onChange) {
+        using Variable<T, V>::Variable;
 
-            variability_ = variability_t::CONTINUOUS;
-        }
-
-        RealVariable(
-                const std::string &name,
-                unsigned int vr, size_t index,
-                const std::function<double()> &getter,
-                const std::optional<std::function<void(double)>> &setter)
-            : Variable(name, vr, index, getter, setter) {
-
-            variability_ = variability_t::CONTINUOUS;
-        }
-
-        [[nodiscard]] std::optional<double> getMin() const {
+        [[nodiscard]] std::optional<T> getMin() const {
             return min_;
         }
 
-        [[nodiscard]] std::optional<double> getMax() const {
+        [[nodiscard]] std::optional<T> getMax() const {
             return max_;
         }
 
-        [[nodiscard]] std::optional<std::string> getUnit() const {
+        [[nodiscard]] std::optional<std::string> getUnit() const override {
             return unit_;
         }
 
-        RealVariable &setMin(const std::optional<double> &min) {
+        [[nodiscard]] std::optional<std::string> getDisplayUnit() const override {
+            return displayUnit_;
+        }
+
+        [[nodiscard]] std::optional<std::string> getQuantity() const override {
+            return quantity_;
+        }
+
+        [[nodiscard]] std::optional<std::string> get_start_as_string() const override {
+            return format_numeric(this->get());
+        }
+
+        [[nodiscard]] std::optional<std::string> get_min_as_string() const override {
+            if (min_) return format_numeric(*min_);
+            return std::nullopt;
+        }
+
+        [[nodiscard]] std::optional<std::string> get_max_as_string() const override {
+            if (max_) return format_numeric(*max_);
+            return std::nullopt;
+        }
+
+        V &setMin(const std::optional<T> &min) {
             min_ = min;
-            return *this;
+            return *static_cast<V *>(this);
         }
 
-        RealVariable &setMax(const std::optional<double> &max) {
+        V &setMax(const std::optional<T> &max) {
             max_ = max;
-            return *this;
+            return *static_cast<V *>(this);
         }
 
-        RealVariable &setUnit(const std::optional<std::string> &unit) {
+        V &setUnit(const std::optional<std::string> &unit) {
             unit_ = unit;
+            return *static_cast<V *>(this);
+        }
+
+        V &setDisplayUnit(const std::optional<std::string> &displayUnit) {
+            displayUnit_ = displayUnit;
+            return *static_cast<V *>(this);
+        }
+
+        V &setQuantity(const std::optional<std::string> &quantity) {
+            quantity_ = quantity;
+            return *static_cast<V *>(this);
+        }
+
+    private:
+        std::optional<T> min_;
+        std::optional<T> max_;
+        std::optional<std::string> unit_;
+        std::optional<std::string> displayUnit_;
+        std::optional<std::string> quantity_;
+    };
+
+    class Int8Variable final : public NumericVariable<int8_t, Int8Variable> {
+    public:
+        using NumericVariable::NumericVariable;
+        [[nodiscard]] data_type type() const override { return data_type::INT8; }
+        [[nodiscard]] std::string type_name() const override { return "Int8"; }
+    };
+
+    class UInt8Variable final : public NumericVariable<uint8_t, UInt8Variable> {
+    public:
+        using NumericVariable::NumericVariable;
+        [[nodiscard]] data_type type() const override { return data_type::UINT8; }
+        [[nodiscard]] std::string type_name() const override { return "UInt8"; }
+    };
+
+    class Int16Variable final : public NumericVariable<int16_t, Int16Variable> {
+    public:
+        using NumericVariable::NumericVariable;
+        [[nodiscard]] data_type type() const override { return data_type::INT16; }
+        [[nodiscard]] std::string type_name() const override { return "Int16"; }
+    };
+
+    class UInt16Variable final : public NumericVariable<uint16_t, UInt16Variable> {
+    public:
+        using NumericVariable::NumericVariable;
+        [[nodiscard]] data_type type() const override { return data_type::UINT16; }
+        [[nodiscard]] std::string type_name() const override { return "UInt16"; }
+    };
+
+    class Int32Variable : public NumericVariable<int32_t, Int32Variable> {
+    public:
+        using NumericVariable::NumericVariable;
+        [[nodiscard]] data_type type() const override { return data_type::INT32; }
+        [[nodiscard]] std::string type_name() const override { return "Int32"; }
+    };
+
+    class UInt32Variable final : public NumericVariable<uint32_t, UInt32Variable> {
+    public:
+        using NumericVariable::NumericVariable;
+        [[nodiscard]] data_type type() const override { return data_type::UINT32; }
+        [[nodiscard]] std::string type_name() const override { return "UInt32"; }
+    };
+
+    class Int64Variable final : public NumericVariable<int64_t, Int64Variable> {
+    public:
+        using NumericVariable::NumericVariable;
+        [[nodiscard]] data_type type() const override { return data_type::INT64; }
+        [[nodiscard]] std::string type_name() const override { return "Int64"; }
+    };
+
+    class UInt64Variable final : public NumericVariable<uint64_t, UInt64Variable> {
+    public:
+        using NumericVariable::NumericVariable;
+        [[nodiscard]] data_type type() const override { return data_type::UINT64; }
+        [[nodiscard]] std::string type_name() const override { return "UInt64"; }
+    };
+
+    class Float32Variable final : public NumericVariable<float, Float32Variable> {
+    public:
+        Float32Variable(
+                std::string name,
+                unsigned int vr, size_t index, float *ptr, const std::function<void()> &onChange)
+            : NumericVariable(std::move(name), vr, index, ptr, onChange) {
+            variability_ = variability_t::CONTINUOUS;
+        }
+
+        Float32Variable(
+                std::string name,
+                unsigned int vr, size_t index,
+                std::function<float()> getter,
+                std::optional<std::function<void(float)>> setter)
+            : NumericVariable(std::move(name), vr, index, std::move(getter), std::move(setter)) {
+            variability_ = variability_t::CONTINUOUS;
+        }
+
+        [[nodiscard]] data_type type() const override { return data_type::FLOAT32; }
+        [[nodiscard]] std::string type_name() const override { return "Float32"; }
+    };
+
+    class Float64Variable : public NumericVariable<double, Float64Variable> {
+    public:
+        Float64Variable(
+                std::string name,
+                unsigned int vr, size_t index, double *ptr, const std::function<void()> &onChange)
+            : NumericVariable(std::move(name), vr, index, ptr, onChange) {
+            variability_ = variability_t::CONTINUOUS;
+        }
+
+        Float64Variable(
+                std::string name,
+                unsigned int vr, size_t index,
+                std::function<double()> getter,
+                std::optional<std::function<void(double)>> setter)
+            : NumericVariable(std::move(name), vr, index, std::move(getter), std::move(setter)) {
+            variability_ = variability_t::CONTINUOUS;
+        }
+
+        [[nodiscard]] data_type type() const override { return data_type::FLOAT64; }
+        [[nodiscard]] std::string type_name() const override { return "Float64"; }
+    };
+
+    // Aliases for FMI 2 / legacy API backwards compatibility
+    using IntVariable = Int32Variable;
+    using RealVariable = Float64Variable;
+
+    class BoolVariable final : public Variable<bool, BoolVariable> {
+    public:
+        using Variable::Variable;
+        [[nodiscard]] data_type type() const override { return data_type::BOOLEAN; }
+        [[nodiscard]] std::string type_name() const override { return "Boolean"; }
+        [[nodiscard]] std::optional<std::string> get_start_as_string() const override {
+            return this->get() ? "true" : "false";
+        }
+    };
+
+    class StringVariable final : public Variable<std::string, StringVariable> {
+    public:
+        using Variable::Variable;
+        [[nodiscard]] data_type type() const override { return data_type::STRING; }
+        [[nodiscard]] std::string type_name() const override { return "String"; }
+        [[nodiscard]] std::optional<std::string> get_start_as_string() const override {
+            return this->get();
+        }
+    };
+
+    class BinaryVariable final : public Variable<BinaryType, BinaryVariable> {
+    public:
+        using Variable::Variable;
+
+        [[nodiscard]] data_type type() const override { return data_type::BINARY; }
+        [[nodiscard]] std::string type_name() const override { return "Binary"; }
+
+        [[nodiscard]] std::optional<std::string> get_start_as_string() const override {
+            const auto &bytes = this->get();
+            static const char hex[] = "0123456789ABCDEF";
+            std::string out;
+            out.reserve(bytes.size() * 2);
+            for (uint8_t c: bytes) {
+                out.push_back(hex[c >> 4]);
+                out.push_back(hex[c & 0x0F]);
+            }
+            return out;
+        }
+
+        [[nodiscard]] std::optional<std::string> getMimeType() const { return mimeType_; }
+        BinaryVariable &setMimeType(const std::optional<std::string> &mimeType) {
+            mimeType_ = mimeType;
             return *this;
         }
 
     private:
-        std::optional<double> min_;
-        std::optional<double> max_;
-        std::optional<std::string> unit_;
+        std::optional<std::string> mimeType_;
     };
 
-    class BoolVariable final : public Variable<bool, BoolVariable> {
-
+    class ClockVariable final : public Variable<bool, ClockVariable> {
     public:
-        BoolVariable(
-                const std::string &name,
-                unsigned int vr, size_t index, bool *ptr, const std::function<void()> &onChange)
-            : Variable(name, vr, index, ptr, onChange) {}
+        using Variable::Variable;
 
-        BoolVariable(
-                const std::string &name,
-                unsigned int vr, size_t index,
-                const std::function<bool()> &getter,
-                const std::optional<std::function<void(bool)>> &setter)
-            : Variable(name, vr, index, getter, setter) {}
-    };
+        [[nodiscard]] data_type type() const override { return data_type::CLOCK; }
+        [[nodiscard]] std::string type_name() const override { return "Clock"; }
 
-    class StringVariable : public Variable<std::string, StringVariable> {
+        [[nodiscard]] std::optional<interval_variability_t> getIntervalVariability() const { return intervalVariability_; }
+        [[nodiscard]] std::optional<double> getIntervalDecimal() const { return intervalDecimal_; }
+        [[nodiscard]] std::optional<uint64_t> getResolution() const { return resolution_; }
+        [[nodiscard]] std::optional<uint64_t> getIntervalCounter() const { return intervalCounter_; }
+        [[nodiscard]] std::optional<uint64_t> getShiftCounter() const { return shiftCounter_; }
+        [[nodiscard]] std::optional<uint32_t> getPriority() const { return priority_; }
 
-    public:
-        StringVariable(
-                const std::string &name,
-                unsigned int vr, size_t index, std::string *ptr, const std::function<void()> &onChange)
-            : Variable(name, vr, index, ptr, onChange) {}
+        ClockVariable &setIntervalVariability(interval_variability_t iv) {
+            intervalVariability_ = iv;
+            return *this;
+        }
+        ClockVariable &setIntervalDecimal(double d) {
+            intervalDecimal_ = d;
+            return *this;
+        }
+        ClockVariable &setResolution(uint64_t r) {
+            resolution_ = r;
+            return *this;
+        }
+        ClockVariable &setIntervalCounter(uint64_t c) {
+            intervalCounter_ = c;
+            return *this;
+        }
+        ClockVariable &setShiftCounter(uint64_t s) {
+            shiftCounter_ = s;
+            return *this;
+        }
+        ClockVariable &setPriority(uint32_t p) {
+            priority_ = p;
+            return *this;
+        }
 
-        StringVariable(
-                const std::string &name,
-                unsigned int vr, size_t index,
-                const std::function<std::string()> &getter,
-                const std::optional<std::function<void(std::string)>> &setter)
-            : Variable(name, vr, index, getter, setter) {}
-    };
-
-    class BinaryVariable : public Variable<BinaryType, BinaryVariable> {
-
-    public:
-        BinaryVariable(
-                const std::string &name,
-                unsigned int vr, size_t index, BinaryType *ptr, const std::function<void()> &onChange)
-            : Variable(name, vr, index, ptr, onChange) {}
-
-        BinaryVariable(
-                const std::string &name,
-                unsigned int vr, size_t index,
-                const std::function<BinaryType()> &getter,
-                const std::optional<std::function<void(BinaryType)>> &setter)
-            : Variable(name, vr, index, getter, setter) {}
+    private:
+        std::optional<interval_variability_t> intervalVariability_;
+        std::optional<double> intervalDecimal_;
+        std::optional<uint64_t> resolution_;
+        std::optional<uint64_t> intervalCounter_;
+        std::optional<uint64_t> shiftCounter_;
+        std::optional<uint32_t> priority_;
     };
 
     bool requires_start(const VariableBase &v);

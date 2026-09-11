@@ -61,11 +61,15 @@ std::string fmu_base::make_description() const {
     ss << "\t<ModelVariables>\n";
 
     const auto allVars = [&] {
-        auto allVars = collect(integers_, reals_, booleans_, strings_);
-        std::sort(allVars.begin(), allVars.end(), [](const VariableBase *v1, const VariableBase *v2) {
+        std::vector<const VariableBase *> vars;
+        vars.reserve(variables_.size());
+        for (const auto &v: variables_) {
+            vars.emplace_back(v.get());
+        }
+        std::sort(vars.begin(), vars.end(), [](const VariableBase *v1, const VariableBase *v2) {
             return v1->index() < v2->index();
         });
-        return allVars;
+        return vars;
     }();
 
     for (const auto &v: allVars) {
@@ -147,9 +151,12 @@ std::string fmu_base::make_description() const {
 
     ss << "\t<ModelStructure>\n";
 
-    const auto unknowns = collect(integers_, reals_, booleans_, strings_, [](auto &v) {
-        return v.causality() == causality_t::OUTPUT;
-    });
+    std::vector<const VariableBase *> unknowns;
+    for (const auto &v: variables_) {
+        if (v->causality() == causality_t::OUTPUT) {
+            unknowns.emplace_back(v.get());
+        }
+    }
 
     if (!unknowns.empty()) {
         ss << "\t\t<Outputs>\n";
@@ -177,9 +184,12 @@ std::string fmu_base::make_description() const {
         ss << "\t\t</Outputs>\n";
     }
 
-    const auto initialUnknowns = collect(integers_, reals_, booleans_, strings_, [](auto &v) {
-        return (v.causality() == causality_t::OUTPUT && v.initial() == initial_t::APPROX || v.initial() == initial_t::CALCULATED) || v.causality() == causality_t::CALCULATED_PARAMETER;
-    });
+    std::vector<const VariableBase *> initialUnknowns;
+    for (const auto &v: variables_) {
+        if ((v->causality() == causality_t::OUTPUT && (v->initial() == initial_t::APPROX || v->initial() == initial_t::CALCULATED)) || v->causality() == causality_t::CALCULATED_PARAMETER) {
+            initialUnknowns.emplace_back(v.get());
+        }
+    }
     if (!initialUnknowns.empty()) {
         ss << "\t\t<InitialUnknowns>\n";
         for (const auto &v: initialUnknowns) {

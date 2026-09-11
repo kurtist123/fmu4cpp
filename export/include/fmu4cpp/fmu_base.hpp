@@ -2,7 +2,10 @@
 #ifndef FMU4CPP_FMU_BASE_HPP
 #define FMU4CPP_FMU_BASE_HPP
 
-#include <cstdint>
+#include "fmu4cpp/fmu_variable.hpp"
+#include "fmu4cpp/logger.hpp"
+#include "fmu4cpp/model_info.hpp"
+
 #include <cstring>
 #include <filesystem>
 #include <functional>
@@ -10,36 +13,18 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <vector>
-
-#include "fmu_except.hpp"
-#include "fmu_variable.hpp"
-#include "logger.hpp"
-#include "model_info.hpp"
-#include "status.hpp"
-
 
 namespace fmu4cpp {
 
     namespace state {
 
-        // detection idiom for member reset()
-        template<typename T, typename = void>
-        struct has_reset : std::false_type {};
-
-        template<typename T>
-        struct has_reset<T, std::void_t<decltype(std::declval<T &>().reset())>> : std::true_type {};
-
-        // call_reset overloads selected by SFINAE
-        template<typename T>
-        std::enable_if_t<has_reset<T>::value, void> call_reset(void *dst) {
-            static_cast<T *>(dst)->reset();
-        }
-
-        template<typename T>
-        std::enable_if_t<!has_reset<T>::value, void> call_reset(void *dst) {
-            *static_cast<T *>(dst) = T();
+        template<typename State>
+        void call_reset(void *dst) {
+            static_cast<State *>(dst)->~State();
+            new (dst) State();
         }
 
         struct Ops {
@@ -49,25 +34,32 @@ namespace fmu4cpp {
             size_t (*serialized_size)();
             void (*serialize)(const void *, std::vector<uint8_t> &);
             void (*deserialize)(const std::vector<uint8_t> &, void **);
-            void (*reset_inplace)(void *);// new: reset the in-place state to its initial/default values
+            void (*reset_inplace)(void *);// reset the in-place state to its initial/default values
         };
 
         template<typename State>
         const Ops *make_state_ops() {
-            static_assert(std::is_trivially_copyable_v<State>, "State must be trivially copyable");
-            static const Ops ops = {
+            static const Ops ops{
                     // create_from_state
-                    +[](const void *p) -> void * { return new State(*static_cast<const State *>(p)); },
+                    +[](const void *src) -> void * {
+                        return new State(*static_cast<const State *>(src));
+                    },
                     // assign_into_state
-                    +[](void *dst, const void *src) { *static_cast<State *>(dst) = *static_cast<const State *>(src); },
+                    +[](void *dst, const void *src) {
+                        *static_cast<State *>(dst) = *static_cast<const State *>(src);
+                    },
                     // destroy
-                    +[](void *p) { delete static_cast<State *>(p); },
+                    +[](void *p) {
+                        delete static_cast<State *>(p);
+                    },
                     // serialized_size
-                    +[]() -> size_t { return sizeof(State); },
+                    +[]() -> size_t {
+                        return sizeof(State);
+                    },
                     // serialize
-                    +[](const void *p, std::vector<uint8_t> &out) {
-                        const auto *b = static_cast<const uint8_t *>(p);
-                        out.assign(b, b + sizeof(State));
+                    +[](const void *state, std::vector<uint8_t> &out) {
+                        out.resize(sizeof(State));
+                        std::memcpy(out.data(), state, sizeof(State));
                     },
                     // deserialize
                     +[](const std::vector<uint8_t> &in, void **out) {
@@ -116,6 +108,24 @@ namespace fmu4cpp {
             return data_.visible;
         }
 
+        [[nodiscard]] const std::vector<std::unique_ptr<VariableBase>> &variables() const {
+            return variables_;
+        }
+
+        [[nodiscard]] const VariableBase *get_variable(const std::string &name) const;
+        [[nodiscard]] const VariableBase *get_variable(unsigned int vr) const;
+
+        template<typename VarType>
+        [[nodiscard]] std::optional<VarType> get_variable(const std::string &name) const {
+            auto it = nameToVariable_.find(name);
+            if (it != nameToVariable_.end()) {
+                if (auto p = dynamic_cast<const VarType *>(it->second)) {
+                    return *p;
+                }
+            }
+            return std::nullopt;
+        }
+
         [[nodiscard]] std::optional<IntVariable> get_int_variable(const std::string &name) const;
         [[nodiscard]] std::optional<RealVariable> get_real_variable(const std::string &name) const;
         [[nodiscard]] std::optional<BoolVariable> get_bool_variable(const std::string &name) const;
@@ -150,6 +160,64 @@ namespace fmu4cpp {
 
         void set_string(const unsigned int vr[], size_t nvr, const char *const value[]);
         void set_binary(const unsigned int vr[], size_t nvr, const size_t valueSizes[], const uint8_t *const value[]);
+
+        template<typename T>
+        void get_values(const unsigned int vr[], size_t nvr, T value[], size_t nValues) const {
+            size_t totalExpected = 0;
+            for (size_t i = 0; i < nvr; ++i) {
+                auto it = vrToVariable_.find(vr[i]);
+                if (it == vrToVariable_.end()) {
+                    throw std::out_of_range("Invalid valueReference: " + std::to_string(vr[i]));
+                }
+                totalExpected += it->second->flattened_size();
+            }
+            if (totalExpected != nValues) {
+                throw std::invalid_argument("nValues (" + std::to_string(nValues) +
+                                            ") does not match expected element count (" +
+                                            std::to_string(totalExpected) + ")");
+            }
+
+            size_t offset = 0;
+            for (size_t i = 0; i < nvr; ++i) {
+                auto it = vrToVariable_.find(vr[i]);
+                auto *var = dynamic_cast<const TypedVariableBase<T> *>(it->second);
+                if (!var) {
+                    throw std::invalid_argument("Type mismatch for valueReference " + std::to_string(vr[i]));
+                }
+                const size_t cnt = var->flattened_size();
+                var->read_values(value + offset, cnt);
+                offset += cnt;
+            }
+        }
+
+        template<typename T>
+        void set_values(const unsigned int vr[], size_t nvr, const T value[], size_t nValues) {
+            size_t totalExpected = 0;
+            for (size_t i = 0; i < nvr; ++i) {
+                auto it = vrToVariable_.find(vr[i]);
+                if (it == vrToVariable_.end()) {
+                    throw std::out_of_range("Invalid valueReference: " + std::to_string(vr[i]));
+                }
+                totalExpected += it->second->flattened_size();
+            }
+            if (totalExpected != nValues) {
+                throw std::invalid_argument("nValues (" + std::to_string(nValues) +
+                                            ") does not match expected element count (" +
+                                            std::to_string(totalExpected) + ")");
+            }
+
+            size_t offset = 0;
+            for (size_t i = 0; i < nvr; ++i) {
+                auto it = vrToVariable_.find(vr[i]);
+                auto *var = dynamic_cast<TypedVariableBase<T> *>(it->second);
+                if (!var) {
+                    throw std::invalid_argument("Type mismatch for valueReference " + std::to_string(vr[i]));
+                }
+                const size_t cnt = var->flattened_size();
+                var->write_values(value + offset, cnt);
+                offset += cnt;
+            }
+        }
 
         [[nodiscard]] std::string guid() const;
         [[nodiscard]] std::string make_description() const;
@@ -194,6 +262,95 @@ namespace fmu4cpp {
                                         const std::function<std::vector<uint8_t>()> &getter,
                                         const std::optional<std::function<void(std::vector<uint8_t>)>> &setter = std::nullopt);
 
+        template<typename VarClass, typename... Args>
+        VarClass &add_variable(Args &&...args) {
+            auto var = std::make_unique<VarClass>(std::forward<Args>(args)...);
+            auto *ptr = var.get();
+            vrToVariable_.emplace(ptr->value_reference(), ptr);
+            nameToVariable_.emplace(ptr->name(), ptr);
+            variables_.emplace_back(std::move(var));
+            return *ptr;
+        }
+
+        // Sized integer types
+        Int8Variable &register_int8(const std::string &name,
+                                    int8_t *ptr,
+                                    const std::function<void()> &onChange = nullptr);
+        Int8Variable &register_int8(const std::string &name,
+                                    const std::function<int8_t()> &getter,
+                                    const std::optional<std::function<void(int8_t)>> &setter = std::nullopt);
+
+        UInt8Variable &register_uint8(const std::string &name,
+                                      uint8_t *ptr,
+                                      const std::function<void()> &onChange = nullptr);
+        UInt8Variable &register_uint8(const std::string &name,
+                                      const std::function<uint8_t()> &getter,
+                                      const std::optional<std::function<void(uint8_t)>> &setter = std::nullopt);
+
+        Int16Variable &register_int16(const std::string &name,
+                                      int16_t *ptr,
+                                      const std::function<void()> &onChange = nullptr);
+        Int16Variable &register_int16(const std::string &name,
+                                      const std::function<int16_t()> &getter,
+                                      const std::optional<std::function<void(int16_t)>> &setter = std::nullopt);
+
+        UInt16Variable &register_uint16(const std::string &name,
+                                        uint16_t *ptr,
+                                        const std::function<void()> &onChange = nullptr);
+        UInt16Variable &register_uint16(const std::string &name,
+                                        const std::function<uint16_t()> &getter,
+                                        const std::optional<std::function<void(uint16_t)>> &setter = std::nullopt);
+
+        Int32Variable &register_int32(const std::string &name,
+                                      int32_t *ptr,
+                                      const std::function<void()> &onChange = nullptr);
+        Int32Variable &register_int32(const std::string &name,
+                                      const std::function<int32_t()> &getter,
+                                      const std::optional<std::function<void(int32_t)>> &setter = std::nullopt);
+
+        UInt32Variable &register_uint32(const std::string &name,
+                                        uint32_t *ptr,
+                                        const std::function<void()> &onChange = nullptr);
+        UInt32Variable &register_uint32(const std::string &name,
+                                        const std::function<uint32_t()> &getter,
+                                        const std::optional<std::function<void(uint32_t)>> &setter = std::nullopt);
+
+        Int64Variable &register_int64(const std::string &name,
+                                      int64_t *ptr,
+                                      const std::function<void()> &onChange = nullptr);
+        Int64Variable &register_int64(const std::string &name,
+                                      const std::function<int64_t()> &getter,
+                                      const std::optional<std::function<void(int64_t)>> &setter = std::nullopt);
+
+        UInt64Variable &register_uint64(const std::string &name,
+                                        uint64_t *ptr,
+                                        const std::function<void()> &onChange = nullptr);
+        UInt64Variable &register_uint64(const std::string &name,
+                                        const std::function<uint64_t()> &getter,
+                                        const std::optional<std::function<void(uint64_t)>> &setter = std::nullopt);
+
+        // Floating-point types
+        Float32Variable &register_float32(const std::string &name,
+                                          float *ptr,
+                                          const std::function<void()> &onChange = nullptr);
+        Float32Variable &register_float32(const std::string &name,
+                                          const std::function<float()> &getter,
+                                          const std::optional<std::function<void(float)>> &setter = std::nullopt);
+
+        Float64Variable &register_float64(const std::string &name,
+                                          double *ptr,
+                                          const std::function<void()> &onChange = nullptr);
+        Float64Variable &register_float64(const std::string &name,
+                                          const std::function<double()> &getter,
+                                          const std::optional<std::function<void(double)>> &setter = std::nullopt);
+
+        ClockVariable &register_clock(const std::string &name,
+                                      bool *ptr,
+                                      const std::function<void()> &onChange = nullptr);
+        ClockVariable &register_clock(const std::string &name,
+                                      const std::function<bool()> &getter,
+                                      const std::optional<std::function<void(bool)>> &setter = std::nullopt);
+
         virtual void enter_initialisation_mode();
         virtual bool do_step(double dt) = 0;
 
@@ -231,22 +388,12 @@ namespace fmu4cpp {
         std::optional<double> stop_;
         std::optional<double> tolerance_;
 
-        std::vector<IntVariable> integers_;
-        std::unordered_map<unsigned int, size_t> vrToIntegerIndices_;
+        std::vector<std::unique_ptr<VariableBase>> variables_;
+        std::unordered_map<unsigned int, VariableBase *> vrToVariable_;
+        std::unordered_map<std::string, VariableBase *> nameToVariable_;
 
-        std::vector<RealVariable> reals_;
-        std::unordered_map<unsigned int, size_t> vrToRealIndices_;
-
-        std::vector<BoolVariable> booleans_;
-        std::unordered_map<unsigned int, size_t> vrToBooleanIndices_;
-
-        std::vector<StringVariable> strings_;
         std::vector<std::string> stringBuffer_;
-        std::unordered_map<unsigned int, size_t> vrToStringIndices_;
-
-        std::vector<BinaryVariable> binary_;
         std::vector<std::vector<uint8_t>> binaryBuffer_;
-        std::unordered_map<unsigned int, size_t> vrToBinaryIndices_;
 
         std::function<void *(void *)> get_state_ptr_{nullptr};
         const state::Ops *state_ops_{nullptr};

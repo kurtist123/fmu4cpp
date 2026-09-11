@@ -84,34 +84,6 @@ namespace {
                                  static_cast<int>(Fmi3Component::State::InitializationMode) |
                                  static_cast<int>(Fmi3Component::State::StepMode);
 
-#define FMU_TYPE(type) fmi3##type
-
-#define NOT_IMPLEMENTED_GETTER(type)                                                           \
-    fmi3Status fmi3Get##type(                                                                  \
-            fmi3Instance c,                                                                    \
-            const fmi3ValueReference vr[],                                                     \
-            size_t nValueReferences,                                                           \
-            FMU_TYPE(type) values[],                                                           \
-            size_t nValues) {                                                                  \
-        if (!c) return fmi3Error;                                                              \
-        const auto component = static_cast<Fmi3Component *>(c);                                \
-        component->logger->log(fmiError, std::string("Unsupported function fmi3Get") + #type); \
-        return fmi3Error;                                                                      \
-    }
-
-#define NOT_IMPLEMENTED_SETTER(type)                                                           \
-    fmi3Status fmi3Set##type(                                                                  \
-            fmi3Instance c,                                                                    \
-            const fmi3ValueReference vr[],                                                     \
-            size_t nValueReferences,                                                           \
-            const FMU_TYPE(type) values[],                                                     \
-            size_t nValues) {                                                                  \
-        if (!c) return fmi3Error;                                                              \
-        const auto component = static_cast<Fmi3Component *>(c);                                \
-        component->logger->log(fmiError, std::string("Unsupported function fmi3Set") + #type); \
-        return fmi3Error;                                                                      \
-    }
-
 }// namespace
 
 extern "C" {
@@ -427,103 +399,216 @@ fmi3Status fmi3Reset(fmi3Instance c) {
     }
 }
 
-#define IMPLEMENT_FMI3_GETTER(Type, Method)                                                             \
-    fmi3Status fmi3Get##Type(                                                                           \
-            fmi3Instance c,                                                                             \
-            const fmi3ValueReference vr[],                                                              \
-            size_t nvr,                                                                                 \
-            fmi3##Type value[],                                                                         \
-            size_t nValues) {                                                                           \
-        if (!c) {                                                                                       \
-            return fmi3Error;                                                                           \
-        }                                                                                               \
-        const auto component = static_cast<Fmi3Component *>(c);                                         \
-        if (component->state == Fmi3Component::State::Invalid) {                                        \
-            return fmi3Fatal;                                                                           \
-        }                                                                                               \
-        if (!component->isStateAllowed(StatesCanGet)) {                                                 \
-            component->logger->log(fmiError, "fmi3Get" #Type " called in illegal state");               \
-            component->state = Fmi3Component::State::Terminated;                                        \
-            return fmi3Error;                                                                           \
-        }                                                                                               \
-        if (nvr > 0 && (!vr || !value)) {                                                               \
-            component->logger->log(fmiError, "fmi3Get" #Type ": Null pointer passed for vr or values"); \
-            component->state = Fmi3Component::State::Terminated;                                        \
-            return fmi3Error;                                                                           \
-        }                                                                                               \
-        if (nValues != nvr) {                                                                           \
-            component->logger->log(fmiError, "fmi3Get" #Type ": nValues must equal nvr");               \
-            component->state = Fmi3Component::State::Terminated;                                        \
-            return fmi3Error;                                                                           \
-        }                                                                                               \
-        try {                                                                                           \
-            component->slave->Method(vr, nvr, value);                                                   \
-            return fmi3OK;                                                                              \
-        } catch (const fmu4cpp::fatal_error &ex) {                                                      \
-            component->logger->log(fmiFatal, ex.what());                                                \
-            component->state = Fmi3Component::State::Invalid;                                           \
-            return fmi3Fatal;                                                                           \
-        } catch (const std::exception &ex) {                                                            \
-            component->logger->log(fmiError, ex.what());                                                \
-            component->state = Fmi3Component::State::Terminated;                                        \
-            return fmi3Error;                                                                           \
-        }                                                                                               \
+#define IMPLEMENT_FMI3_TYPED_GETTER(Type, CppType)                                                       \
+    fmi3Status fmi3Get##Type(                                                                            \
+            fmi3Instance c,                                                                              \
+            const fmi3ValueReference vr[],                                                               \
+            size_t nvr,                                                                                  \
+            fmi3##Type value[],                                                                          \
+            size_t nValues) {                                                                            \
+        if (!c) {                                                                                        \
+            return fmi3Error;                                                                            \
+        }                                                                                                \
+        const auto component = static_cast<Fmi3Component *>(c);                                          \
+        if (component->state == Fmi3Component::State::Invalid) {                                         \
+            return fmi3Fatal;                                                                            \
+        }                                                                                                \
+        if (!component->isStateAllowed(StatesCanGet)) {                                                  \
+            component->logger->log(fmiError, "fmi3Get" #Type " called in illegal state");                \
+            component->state = Fmi3Component::State::Terminated;                                         \
+            return fmi3Error;                                                                            \
+        }                                                                                                \
+        if (nvr > 0 && !vr) {                                                                            \
+            component->logger->log(fmiError, "fmi3Get" #Type ": Null pointer passed for vr");            \
+            component->state = Fmi3Component::State::Terminated;                                         \
+            return fmi3Error;                                                                            \
+        }                                                                                                \
+        if (nValues > 0 && !value) {                                                                     \
+            component->logger->log(fmiError, "fmi3Get" #Type ": Null pointer passed for values");        \
+            component->state = Fmi3Component::State::Terminated;                                         \
+            return fmi3Error;                                                                            \
+        }                                                                                                \
+        try {                                                                                            \
+            component->slave->get_values<CppType>(vr, nvr, reinterpret_cast<CppType *>(value), nValues); \
+            return fmi3OK;                                                                               \
+        } catch (const fmu4cpp::fatal_error &ex) {                                                       \
+            component->logger->log(fmiFatal, ex.what());                                                 \
+            component->state = Fmi3Component::State::Invalid;                                            \
+            return fmi3Fatal;                                                                            \
+        } catch (const std::exception &ex) {                                                             \
+            component->logger->log(fmiError, ex.what());                                                 \
+            component->state = Fmi3Component::State::Terminated;                                         \
+            return fmi3Error;                                                                            \
+        }                                                                                                \
     }
 
-#define IMPLEMENT_FMI3_SETTER(Type, Method)                                                             \
-    fmi3Status fmi3Set##Type(                                                                           \
-            fmi3Instance c,                                                                             \
-            const fmi3ValueReference vr[],                                                              \
-            size_t nvr,                                                                                 \
-            const fmi3##Type value[],                                                                   \
-            size_t nValues) {                                                                           \
-        if (!c) {                                                                                       \
-            return fmi3Error;                                                                           \
-        }                                                                                               \
-        const auto component = static_cast<Fmi3Component *>(c);                                         \
-        if (component->state == Fmi3Component::State::Invalid) {                                        \
-            return fmi3Fatal;                                                                           \
-        }                                                                                               \
-        if (!component->isStateAllowed(StatesCanSet)) {                                                 \
-            component->logger->log(fmiError, "fmi3Set" #Type " called in illegal state");               \
-            component->state = Fmi3Component::State::Terminated;                                        \
-            return fmi3Error;                                                                           \
-        }                                                                                               \
-        if (nvr > 0 && (!vr || !value)) {                                                               \
-            component->logger->log(fmiError, "fmi3Set" #Type ": Null pointer passed for vr or values"); \
-            component->state = Fmi3Component::State::Terminated;                                        \
-            return fmi3Error;                                                                           \
-        }                                                                                               \
-        if (nValues != nvr) {                                                                           \
-            component->logger->log(fmiError, "fmi3Set" #Type ": nValues must equal nvr");               \
-            component->state = Fmi3Component::State::Terminated;                                        \
-            return fmi3Error;                                                                           \
-        }                                                                                               \
-        try {                                                                                           \
-            component->slave->Method(vr, nvr, value);                                                   \
-            return fmi3OK;                                                                              \
-        } catch (const fmu4cpp::fatal_error &ex) {                                                      \
-            component->logger->log(fmiFatal, ex.what());                                                \
-            component->state = Fmi3Component::State::Invalid;                                           \
-            return fmi3Fatal;                                                                           \
-        } catch (const std::exception &ex) {                                                            \
-            component->logger->log(fmiError, ex.what());                                                \
-            component->state = Fmi3Component::State::Terminated;                                        \
-            return fmi3Error;                                                                           \
-        }                                                                                               \
+#define IMPLEMENT_FMI3_TYPED_SETTER(Type, CppType)                                                             \
+    fmi3Status fmi3Set##Type(                                                                                  \
+            fmi3Instance c,                                                                                    \
+            const fmi3ValueReference vr[],                                                                     \
+            size_t nvr,                                                                                        \
+            const fmi3##Type value[],                                                                          \
+            size_t nValues) {                                                                                  \
+        if (!c) {                                                                                              \
+            return fmi3Error;                                                                                  \
+        }                                                                                                      \
+        const auto component = static_cast<Fmi3Component *>(c);                                                \
+        if (component->state == Fmi3Component::State::Invalid) {                                               \
+            return fmi3Fatal;                                                                                  \
+        }                                                                                                      \
+        if (!component->isStateAllowed(StatesCanSet)) {                                                        \
+            component->logger->log(fmiError, "fmi3Set" #Type " called in illegal state");                      \
+            component->state = Fmi3Component::State::Terminated;                                               \
+            return fmi3Error;                                                                                  \
+        }                                                                                                      \
+        if (nvr > 0 && !vr) {                                                                                  \
+            component->logger->log(fmiError, "fmi3Set" #Type ": Null pointer passed for vr");                  \
+            component->state = Fmi3Component::State::Terminated;                                               \
+            return fmi3Error;                                                                                  \
+        }                                                                                                      \
+        if (nValues > 0 && !value) {                                                                           \
+            component->logger->log(fmiError, "fmi3Set" #Type ": Null pointer passed for values");              \
+            component->state = Fmi3Component::State::Terminated;                                               \
+            return fmi3Error;                                                                                  \
+        }                                                                                                      \
+        try {                                                                                                  \
+            component->slave->set_values<CppType>(vr, nvr, reinterpret_cast<const CppType *>(value), nValues); \
+            return fmi3OK;                                                                                     \
+        } catch (const fmu4cpp::fatal_error &ex) {                                                             \
+            component->logger->log(fmiFatal, ex.what());                                                       \
+            component->state = Fmi3Component::State::Invalid;                                                  \
+            return fmi3Fatal;                                                                                  \
+        } catch (const std::exception &ex) {                                                                   \
+            component->logger->log(fmiError, ex.what());                                                       \
+            component->state = Fmi3Component::State::Terminated;                                               \
+            return fmi3Error;                                                                                  \
+        }                                                                                                      \
     }
 
-IMPLEMENT_FMI3_GETTER(Int32, get_integer)
-IMPLEMENT_FMI3_SETTER(Int32, set_integer)
+IMPLEMENT_FMI3_TYPED_GETTER(Int8, int8_t)
+IMPLEMENT_FMI3_TYPED_SETTER(Int8, int8_t)
 
-IMPLEMENT_FMI3_GETTER(Float64, get_real)
-IMPLEMENT_FMI3_SETTER(Float64, set_real)
+IMPLEMENT_FMI3_TYPED_GETTER(UInt8, uint8_t)
+IMPLEMENT_FMI3_TYPED_SETTER(UInt8, uint8_t)
 
-IMPLEMENT_FMI3_GETTER(Boolean, get_boolean)
-IMPLEMENT_FMI3_SETTER(Boolean, set_boolean)
+IMPLEMENT_FMI3_TYPED_GETTER(Int16, int16_t)
+IMPLEMENT_FMI3_TYPED_SETTER(Int16, int16_t)
 
-IMPLEMENT_FMI3_GETTER(String, get_string)
-IMPLEMENT_FMI3_SETTER(String, set_string)
+IMPLEMENT_FMI3_TYPED_GETTER(UInt16, uint16_t)
+IMPLEMENT_FMI3_TYPED_SETTER(UInt16, uint16_t)
+
+IMPLEMENT_FMI3_TYPED_GETTER(Int32, int32_t)
+IMPLEMENT_FMI3_TYPED_SETTER(Int32, int32_t)
+
+IMPLEMENT_FMI3_TYPED_GETTER(UInt32, uint32_t)
+IMPLEMENT_FMI3_TYPED_SETTER(UInt32, uint32_t)
+
+IMPLEMENT_FMI3_TYPED_GETTER(Int64, int64_t)
+IMPLEMENT_FMI3_TYPED_SETTER(Int64, int64_t)
+
+IMPLEMENT_FMI3_TYPED_GETTER(UInt64, uint64_t)
+IMPLEMENT_FMI3_TYPED_SETTER(UInt64, uint64_t)
+
+IMPLEMENT_FMI3_TYPED_GETTER(Float32, float)
+IMPLEMENT_FMI3_TYPED_SETTER(Float32, float)
+
+IMPLEMENT_FMI3_TYPED_GETTER(Float64, double)
+IMPLEMENT_FMI3_TYPED_SETTER(Float64, double)
+
+IMPLEMENT_FMI3_TYPED_GETTER(Boolean, bool)
+IMPLEMENT_FMI3_TYPED_SETTER(Boolean, bool)
+
+fmi3Status fmi3GetString(fmi3Instance c,
+                         const fmi3ValueReference vr[],
+                         size_t nvr,
+                         fmi3String value[],
+                         size_t nValues) {
+    if (!c) {
+        return fmi3Error;
+    }
+    const auto component = static_cast<Fmi3Component *>(c);
+    if (component->state == Fmi3Component::State::Invalid) {
+        return fmi3Fatal;
+    }
+    if (!component->isStateAllowed(StatesCanGet)) {
+        component->logger->log(fmiError, "fmi3GetString called in illegal state");
+        component->state = Fmi3Component::State::Terminated;
+        return fmi3Error;
+    }
+    if (nvr > 0 && !vr) {
+        component->logger->log(fmiError, "fmi3GetString: Null pointer passed for vr");
+        component->state = Fmi3Component::State::Terminated;
+        return fmi3Error;
+    }
+    if (nValues > 0 && !value) {
+        component->logger->log(fmiError, "fmi3GetString: Null pointer passed for values");
+        component->state = Fmi3Component::State::Terminated;
+        return fmi3Error;
+    }
+    if (nValues != nvr) {
+        component->logger->log(fmiError, "fmi3GetString: nValues must equal nvr");
+        component->state = Fmi3Component::State::Terminated;
+        return fmi3Error;
+    }
+    try {
+        component->slave->get_string(vr, nvr, value);
+        return fmi3OK;
+    } catch (const fmu4cpp::fatal_error &ex) {
+        component->logger->log(fmiFatal, ex.what());
+        component->state = Fmi3Component::State::Invalid;
+        return fmi3Fatal;
+    } catch (const std::exception &ex) {
+        component->logger->log(fmiError, ex.what());
+        component->state = Fmi3Component::State::Terminated;
+        return fmi3Error;
+    }
+}
+
+fmi3Status fmi3SetString(fmi3Instance c,
+                         const fmi3ValueReference vr[],
+                         size_t nvr,
+                         const fmi3String value[],
+                         size_t nValues) {
+    if (!c) {
+        return fmi3Error;
+    }
+    const auto component = static_cast<Fmi3Component *>(c);
+    if (component->state == Fmi3Component::State::Invalid) {
+        return fmi3Fatal;
+    }
+    if (!component->isStateAllowed(StatesCanSet)) {
+        component->logger->log(fmiError, "fmi3SetString called in illegal state");
+        component->state = Fmi3Component::State::Terminated;
+        return fmi3Error;
+    }
+    if (nvr > 0 && !vr) {
+        component->logger->log(fmiError, "fmi3SetString: Null pointer passed for vr");
+        component->state = Fmi3Component::State::Terminated;
+        return fmi3Error;
+    }
+    if (nValues > 0 && !value) {
+        component->logger->log(fmiError, "fmi3SetString: Null pointer passed for values");
+        component->state = Fmi3Component::State::Terminated;
+        return fmi3Error;
+    }
+    if (nValues != nvr) {
+        component->logger->log(fmiError, "fmi3SetString: nValues must equal nvr");
+        component->state = Fmi3Component::State::Terminated;
+        return fmi3Error;
+    }
+    try {
+        component->slave->set_string(vr, nvr, value);
+        return fmi3OK;
+    } catch (const fmu4cpp::fatal_error &ex) {
+        component->logger->log(fmiFatal, ex.what());
+        component->state = Fmi3Component::State::Invalid;
+        return fmi3Fatal;
+    } catch (const std::exception &ex) {
+        component->logger->log(fmiError, ex.what());
+        component->state = Fmi3Component::State::Terminated;
+        return fmi3Error;
+    }
+}
 
 fmi3Status fmi3GetBinary(fmi3Instance c,
                          const fmi3ValueReference vr[],
@@ -608,28 +693,6 @@ fmi3Status fmi3SetBinary(fmi3Instance c,
         return fmi3Error;
     }
 }
-
-NOT_IMPLEMENTED_SETTER(UInt8);
-NOT_IMPLEMENTED_SETTER(UInt16);
-NOT_IMPLEMENTED_SETTER(UInt32);
-NOT_IMPLEMENTED_SETTER(UInt64);
-
-NOT_IMPLEMENTED_GETTER(UInt8);
-NOT_IMPLEMENTED_GETTER(UInt16);
-NOT_IMPLEMENTED_GETTER(UInt32);
-NOT_IMPLEMENTED_GETTER(UInt64);
-
-NOT_IMPLEMENTED_SETTER(Int8);
-NOT_IMPLEMENTED_SETTER(Int16);
-NOT_IMPLEMENTED_SETTER(Int64);
-
-NOT_IMPLEMENTED_GETTER(Int8);
-NOT_IMPLEMENTED_GETTER(Int16);
-NOT_IMPLEMENTED_GETTER(Int64);
-
-NOT_IMPLEMENTED_SETTER(Float32);
-NOT_IMPLEMENTED_GETTER(Float32);
-
 
 fmi3Status fmi3SetDebugLogging(fmi3Instance c,
                                fmi3Boolean loggingOn,
