@@ -30,6 +30,7 @@ public:
     }
 
     void reset() override {
+        fmu_base::reset();
         boolean_ = false;
         integer_ = 0;
         real_ = 0;

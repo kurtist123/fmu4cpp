@@ -36,6 +36,7 @@ public:
     }
 
     void reset() override {
+        fmu_base::reset();
         binaryIn_ = {};
         realOut_ = 0;
         integerOut_ = 0;
@@ -187,4 +188,3 @@ TEST_CASE("test_model_description_conformance") {
     CHECK(xml.find("<Annotations>") != std::string::npos);
     CHECK(xml.find("org.example.display") != std::string::npos);
 }
-

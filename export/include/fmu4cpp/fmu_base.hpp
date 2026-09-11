@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-#include "fmu_base.hpp"
+#include "fmu_except.hpp"
 #include "fmu_variable.hpp"
 #include "logger.hpp"
 #include "model_info.hpp"
@@ -87,6 +87,13 @@ namespace fmu4cpp {
         std::string instanceName{};
         std::filesystem::path resourceLocation{};
         bool visible{false};
+    };
+
+    struct fmu_state_snapshot {
+        double time{0.0};
+        std::optional<double> stop{std::nullopt};
+        std::optional<double> tolerance{std::nullopt};
+        void *model_state{nullptr};
     };
 
     class fmu_base {
@@ -196,6 +203,14 @@ namespace fmu4cpp {
 
         [[nodiscard]] std::optional<double> tolerance() const {
             return tolerance_;
+        }
+
+        [[nodiscard]] std::optional<double> stopTime() const {
+            return stop_;
+        }
+
+        void set_current_time(double t) {
+            time_ = t;
         }
 
         template<typename Model, typename State>

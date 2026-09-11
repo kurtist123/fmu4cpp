@@ -92,11 +92,16 @@ bool fmu_base::step(double currentTime, double dt) {
 void fmu_base::terminate() {}
 
 void fmu_base::reset() {
-    if (!state_ops_ || !get_state_ptr_) {
-        throw fatal_error("Reset not implemented by FMU");
+    time_ = 0.0;
+    stop_ = std::nullopt;
+    tolerance_ = std::nullopt;
+    stringBuffer_.clear();
+    binaryBuffer_.clear();
+
+    if (state_ops_ && get_state_ptr_) {
+        void *dst = get_state_ptr_(this);
+        state_ops_->reset_inplace(dst);
     }
-    void *dst = get_state_ptr_(this);
-    state_ops_->reset_inplace(dst);
 }
 
 void fmu_base::get_integer(const unsigned int vr[], size_t nvr, int value[]) const {
@@ -325,18 +330,33 @@ std::vector<unsigned> fmu_base::get_value_refs() const {
 void *fmu_base::getFMUState() {
     if (!state_ops_ || !get_state_ptr_) throw fatal_error("getFMUState not implemented");
     const void *in_place = get_state_ptr_(this);
-    return state_ops_->create_from_state(in_place);
+    auto *snap = new fmu_state_snapshot();
+    snap->time = time_;
+    snap->stop = stop_;
+    snap->tolerance = tolerance_;
+    snap->model_state = state_ops_->create_from_state(in_place);
+    return snap;
 }
 
 void fmu_base::setFmuState(void *state) {
     if (!state_ops_ || !get_state_ptr_) throw fatal_error("setFmuState not implemented");
+    if (!state) throw fatal_error("setFmuState called with null state");
+    auto *snap = static_cast<fmu_state_snapshot *>(state);
+    time_ = snap->time;
+    stop_ = snap->stop;
+    tolerance_ = snap->tolerance;
     void *dst = get_state_ptr_(this);
-    state_ops_->assign_into_state(dst, state);
+    state_ops_->assign_into_state(dst, snap->model_state);
 }
 
 void fmu_base::freeFmuState(void **state) {
     if (!state_ops_ || !state || !*state) throw fatal_error("freeFmuState not implemented");
-    state_ops_->destroy(*state);
+    auto *snap = static_cast<fmu_state_snapshot *>(*state);
+    if (snap->model_state) {
+        state_ops_->destroy(snap->model_state);
+        snap->model_state = nullptr;
+    }
+    delete snap;
     *state = nullptr;
 }
 
@@ -347,11 +367,24 @@ void fmu_base::serializedFMUStateSize(void *state, size_t &size) {
 
 void fmu_base::serializeFMUState(void *state, std::vector<uint8_t> &out) {
     if (!state_ops_) throw fatal_error("serializeFMUState not implemented");
-    const void *ptr = state ? state : get_state_ptr_(this);
+    const void *ptr = nullptr;
+    if (state) {
+        auto *snap = static_cast<const fmu_state_snapshot *>(state);
+        ptr = snap->model_state;
+    } else {
+        ptr = get_state_ptr_(this);
+    }
     state_ops_->serialize(ptr, out);
 }
 
 void fmu_base::deserializeFMUState(const std::vector<uint8_t> &in, void **out) {
     if (!state_ops_) throw fatal_error("deserializeFMUState not implemented");
-    state_ops_->deserialize(in, out);
+    void *model_state = nullptr;
+    state_ops_->deserialize(in, &model_state);
+    auto *snap = new fmu_state_snapshot();
+    snap->time = time_;
+    snap->stop = stop_;
+    snap->tolerance = tolerance_;
+    snap->model_state = model_state;
+    *out = snap;
 }

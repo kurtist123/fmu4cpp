@@ -24,7 +24,7 @@ public:
     }
 
     void reset() override {
-        // do nothing
+        fmu_base::reset();
     }
 
 private:

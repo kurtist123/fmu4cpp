@@ -77,6 +77,7 @@ public:
     }
 
     void reset() override {
+        fmu_base::reset();
         state_.reset();
     }
 

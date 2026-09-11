@@ -56,6 +56,9 @@ TEST_CASE("BouncingBall_test") {
     REQUIRE(fmi3GetFloat64(c, &heightVr, 1, &height, 1) == fmi3OK);
     CHECK(height == Catch::Approx(heightState));
 
+    // Rollback test communication time to match restored state
+    t = 0.1;
+
 
     size_t serializedSize;
     fmi3SerializedFMUStateSize(c, state, &serializedSize);
@@ -66,6 +69,7 @@ TEST_CASE("BouncingBall_test") {
     fmi3DeserializeFMUState(c, serializedData.data(), serializedSize, &state);
 
     REQUIRE(fmi3DoStep(c, t, dt, true, &eventhandlingNeeded, &terminateSimulation, &earlyReturn, &lastSucessfulTime) == fmi3OK);
+    t += dt;
 
     REQUIRE(fmi3GetFloat64(c, &heightVr, 1, &height, 1) == fmi3OK);
     CHECK(height != Catch::Approx(heightState));
@@ -84,6 +88,11 @@ TEST_CASE("BouncingBall_test") {
     fmi3Reset(c);
     REQUIRE(fmi3GetFloat64(c, &heightVr, 1, &height, 1) == fmi3OK);
     CHECK(height == Catch::Approx(startHeight));
+
+    // Verify reset restored internal time to 0.0 by reinitializing and stepping from 0.0
+    REQUIRE(fmi3EnterInitializationMode(c, false, 0, 0, false, 0) == fmi3OK);
+    REQUIRE(fmi3ExitInitializationMode(c) == fmi3OK);
+    REQUIRE(fmi3DoStep(c, 0.0, dt, true, &eventhandlingNeeded, &terminateSimulation, &earlyReturn, &lastSucessfulTime) == fmi3OK);
 
     fmi3FreeInstance(c);
 }

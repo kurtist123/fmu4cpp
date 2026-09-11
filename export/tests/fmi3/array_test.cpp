@@ -34,6 +34,7 @@ public:
     }
 
     void reset() override {
+        fmu_base::reset();
         reals_.assign({1, 2, 3, 4});
     }
 
