@@ -81,11 +81,12 @@ namespace fmu4cpp {
         bool visible{false};
     };
 
-    struct fmu_state_snapshot {
-        double time{0.0};
-        std::optional<double> stop{std::nullopt};
-        std::optional<double> tolerance{std::nullopt};
-        void *model_state{nullptr};
+    struct clock_snapshot {
+        unsigned int vr{0};
+        bool active{false};
+        std::optional<double> intervalDecimal{std::nullopt};
+        std::optional<double> shiftDecimal{std::nullopt};
+        interval_qualifier_t intervalQualifier{interval_qualifier_t::INTERVAL_UNCHANGED};
     };
 
     struct discrete_states_info {
@@ -95,6 +96,17 @@ namespace fmu4cpp {
         bool valuesOfContinuousStatesChanged{false};
         bool nextEventTimeDefined{false};
         double nextEventTime{0.0};
+    };
+
+    struct fmu_state_snapshot {
+        double time{0.0};
+        std::optional<double> stop{std::nullopt};
+        std::optional<double> tolerance{std::nullopt};
+        void *model_state{nullptr};
+
+        std::vector<clock_snapshot> clock_states{};
+        bool pending_events{false};
+        discrete_states_info discrete_states{};
     };
 
     class fmu_base {
@@ -154,9 +166,13 @@ namespace fmu4cpp {
         virtual void enter_event_mode() {}
         virtual void update_discrete_states(discrete_states_info &info) {}
         virtual void enter_step_mode() {}
-        [[nodiscard]] virtual bool has_pending_events() const { return false; }
+        [[nodiscard]] virtual bool has_pending_events() const { return pending_events_; }
+        void set_has_pending_events(bool pending) { pending_events_ = pending; }
+        [[nodiscard]] const discrete_states_info &get_discrete_states_info() const { return last_discrete_states_; }
+        void set_discrete_states_info(const discrete_states_info &info) { last_discrete_states_ = info; }
         virtual void on_clock_activated(unsigned int vr) {}
         virtual void on_clock_deactivated(unsigned int vr) {}
+        virtual void on_interval_changed(unsigned int vr, double interval) {}
 
         void get_clock(const unsigned int vr[], size_t nvr, bool value[]) const;
         void set_clock(const unsigned int vr[], size_t nvr, const bool value[]);
@@ -412,6 +428,9 @@ namespace fmu4cpp {
 
         std::optional<double> stop_;
         std::optional<double> tolerance_;
+
+        bool pending_events_{false};
+        discrete_states_info last_discrete_states_{};
 
         std::vector<std::unique_ptr<VariableBase>> variables_;
         std::unordered_map<unsigned int, VariableBase *> vrToVariable_;

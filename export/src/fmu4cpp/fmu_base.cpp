@@ -58,7 +58,7 @@ std::optional<ClockVariable> fmu_base::get_clock_variable(const std::string &nam
 }
 
 bool fmu_base::has_clocks() const {
-    for (const auto &v : variables_) {
+    for (const auto &v: variables_) {
         if (v->type() == data_type::CLOCK) {
             return true;
         }
@@ -107,15 +107,16 @@ void fmu_base::reset() {
     time_ = 0.0;
     stop_ = std::nullopt;
     tolerance_ = std::nullopt;
+    pending_events_ = false;
+    last_discrete_states_ = discrete_states_info{};
     stringBuffer_.clear();
     binaryBuffer_.clear();
 
-    for (auto &v : variables_) {
+    for (auto &v: variables_) {
         if (v->type() == data_type::CLOCK) {
             auto *cv = dynamic_cast<ClockVariable *>(v.get());
             if (cv) {
-                cv->force_set(false);
-                cv->resetIntervalQualifier();
+                cv->reset();
             }
         }
     }
@@ -218,6 +219,7 @@ void fmu_base::set_interval_decimal(const unsigned int vr[], size_t nvr, const d
             throw std::invalid_argument("Variable with valueReference " + std::to_string(vr[i]) + " is not a Clock");
         }
         clockVar->setIntervalDecimal(intervals[i]);
+        on_interval_changed(vr[i], intervals[i]);
     }
 }
 
@@ -518,31 +520,61 @@ std::vector<unsigned> fmu_base::get_value_refs() const {
 
 
 void *fmu_base::getFMUState() {
-    if (!state_ops_ || !get_state_ptr_) throw fatal_error("getFMUState not implemented");
-    const void *in_place = get_state_ptr_(this);
     auto *snap = new fmu_state_snapshot();
     snap->time = time_;
     snap->stop = stop_;
     snap->tolerance = tolerance_;
-    snap->model_state = state_ops_->create_from_state(in_place);
+    snap->pending_events = has_pending_events();
+    snap->discrete_states = last_discrete_states_;
+
+    for (const auto &v: variables_) {
+        if (v->type() == data_type::CLOCK) {
+            auto *cv = static_cast<const ClockVariable *>(v.get());
+            snap->clock_states.push_back({cv->value_reference(),
+                                          cv->get(),
+                                          cv->getIntervalDecimal(),
+                                          cv->getShiftDecimal(),
+                                          cv->getIntervalQualifier()});
+        }
+    }
+
+    if (state_ops_ && get_state_ptr_) {
+        const void *in_place = get_state_ptr_(this);
+        snap->model_state = state_ops_->create_from_state(in_place);
+    }
     return snap;
 }
 
 void fmu_base::setFmuState(void *state) {
-    if (!state_ops_ || !get_state_ptr_) throw fatal_error("setFmuState not implemented");
     if (!state) throw fatal_error("setFmuState called with null state");
     auto *snap = static_cast<fmu_state_snapshot *>(state);
     time_ = snap->time;
     stop_ = snap->stop;
     tolerance_ = snap->tolerance;
-    void *dst = get_state_ptr_(this);
-    state_ops_->assign_into_state(dst, snap->model_state);
+    set_has_pending_events(snap->pending_events);
+    last_discrete_states_ = snap->discrete_states;
+
+    for (const auto &cs: snap->clock_states) {
+        auto it = vrToVariable_.find(cs.vr);
+        if (it != vrToVariable_.end() && it->second->type() == data_type::CLOCK) {
+            auto *cv = static_cast<ClockVariable *>(it->second);
+            cv->force_set(cs.active);
+            cv->restoreIntervalDecimal(cs.intervalDecimal);
+            cv->restoreShiftDecimal(cs.shiftDecimal);
+            cv->setIntervalQualifier(cs.intervalQualifier);
+        }
+    }
+
+    if (state_ops_ && get_state_ptr_ && snap->model_state) {
+        void *dst = get_state_ptr_(this);
+        state_ops_->assign_into_state(dst, snap->model_state);
+    }
 }
 
 void fmu_base::freeFmuState(void **state) {
-    if (!state_ops_ || !state || !*state) throw fatal_error("freeFmuState not implemented");
+    if (!state || !*state) throw fatal_error("freeFmuState called with null state");
     auto *snap = static_cast<fmu_state_snapshot *>(*state);
-    if (snap->model_state) {
+    if (snap->model_state && state_ops_) {
         state_ops_->destroy(snap->model_state);
         snap->model_state = nullptr;
     }
@@ -575,6 +607,8 @@ void fmu_base::deserializeFMUState(const std::vector<uint8_t> &in, void **out) {
     snap->time = time_;
     snap->stop = stop_;
     snap->tolerance = tolerance_;
+    snap->pending_events = has_pending_events();
+    snap->discrete_states = last_discrete_states_;
     snap->model_state = model_state;
     *out = snap;
 }

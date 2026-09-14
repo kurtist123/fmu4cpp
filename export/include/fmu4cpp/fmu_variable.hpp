@@ -605,6 +605,9 @@ namespace fmu4cpp {
             return *this;
         }
         ClockVariable &setIntervalDecimal(double d) {
+            if (!initialIntervalDecimal_.has_value()) {
+                initialIntervalDecimal_ = d;
+            }
             intervalDecimal_ = d;
             intervalQualifier_ = interval_qualifier_t::INTERVAL_CHANGED;
             return *this;
@@ -617,8 +620,23 @@ namespace fmu4cpp {
             intervalQualifier_ = interval_qualifier_t::INTERVAL_UNCHANGED;
         }
         ClockVariable &setShiftDecimal(double s) {
+            if (!initialShiftDecimal_.has_value()) {
+                initialShiftDecimal_ = s;
+            }
             shiftDecimal_ = s;
             return *this;
+        }
+        void restoreIntervalDecimal(const std::optional<double> &d) {
+            intervalDecimal_ = d;
+        }
+        void restoreShiftDecimal(const std::optional<double> &s) {
+            shiftDecimal_ = s;
+        }
+        void reset() {
+            force_set(false);
+            resetIntervalQualifier();
+            intervalDecimal_ = initialIntervalDecimal_;
+            shiftDecimal_ = initialShiftDecimal_;
         }
         ClockVariable &setSupportsFraction(bool sf) {
             supportsFraction_ = sf;
@@ -649,6 +667,8 @@ namespace fmu4cpp {
         std::optional<interval_variability_t> intervalVariability_;
         std::optional<double> intervalDecimal_;
         std::optional<double> shiftDecimal_;
+        std::optional<double> initialIntervalDecimal_;
+        std::optional<double> initialShiftDecimal_;
         bool supportsFraction_{false};
         std::optional<uint64_t> resolution_;
         std::optional<uint64_t> intervalCounter_;

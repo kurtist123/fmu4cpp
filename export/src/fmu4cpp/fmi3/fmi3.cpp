@@ -79,6 +79,13 @@ namespace {
         bool discreteStatesNeedUpdate{false};
     };
 
+    struct Fmi3FMUStateWrapper {
+        void *slave_state{nullptr};
+        Fmi3Component::State component_state{Fmi3Component::State::StepMode};
+        bool discreteStatesNeedUpdate{false};
+        bool eventModeUsed{false};
+    };
+
     constexpr int StatesCanGet = static_cast<int>(Fmi3Component::State::Instantiated) |
                                  static_cast<int>(Fmi3Component::State::InitializationMode) |
                                  static_cast<int>(Fmi3Component::State::StepMode) |
@@ -868,7 +875,12 @@ fmi3Status fmi3GetFMUState(fmi3Instance c, fmi3FMUState *state) {
     try {
 
         const auto s = component->slave->getFMUState();
-        *state = s;
+        auto *wrapper = new Fmi3FMUStateWrapper();
+        wrapper->slave_state = s;
+        wrapper->component_state = component->state;
+        wrapper->discreteStatesNeedUpdate = component->discreteStatesNeedUpdate;
+        wrapper->eventModeUsed = component->eventModeUsed;
+        *state = wrapper;
         return fmi3OK;
 
     } catch (const fmu4cpp::fatal_error &ex) {
@@ -893,7 +905,11 @@ fmi3Status fmi3SetFMUState(fmi3Instance c, fmi3FMUState state) {
 
     try {
 
-        component->slave->setFmuState(state);
+        auto *wrapper = static_cast<Fmi3FMUStateWrapper *>(state);
+        component->slave->setFmuState(wrapper->slave_state);
+        component->state = wrapper->component_state;
+        component->discreteStatesNeedUpdate = wrapper->discreteStatesNeedUpdate;
+        component->eventModeUsed = wrapper->eventModeUsed;
         return fmi3OK;
 
     } catch (const fmu4cpp::fatal_error &ex) {
@@ -923,7 +939,12 @@ fmi3Status fmi3FreeFMUState(fmi3Instance c, fmi3FMUState *state) {
 
     try {
 
-        component->slave->freeFmuState(state);
+        auto *wrapper = static_cast<Fmi3FMUStateWrapper *>(*state);
+        if (wrapper->slave_state) {
+            component->slave->freeFmuState(&wrapper->slave_state);
+        }
+        delete wrapper;
+        *state = nullptr;
         return fmi3OK;
 
     } catch (const fmu4cpp::fatal_error &ex) {
@@ -948,7 +969,8 @@ fmi3Status fmi3SerializedFMUStateSize(fmi3Instance c, fmi3FMUState state, size_t
 
     try {
 
-        component->slave->serializedFMUStateSize(state, *size);
+        auto *wrapper = static_cast<Fmi3FMUStateWrapper *>(state);
+        component->slave->serializedFMUStateSize(wrapper->slave_state, *size);
         return fmi3OK;
 
     } catch (const fmu4cpp::fatal_error &ex) {
@@ -973,8 +995,9 @@ fmi3Status fmi3SerializeFMUState(fmi3Instance c, fmi3FMUState state, fmi3Byte da
 
     try {
 
+        auto *wrapper = static_cast<Fmi3FMUStateWrapper *>(state);
         std::vector<uint8_t> serializedState(size);
-        component->slave->serializeFMUState(state, serializedState);
+        component->slave->serializeFMUState(wrapper->slave_state, serializedState);
         std::memcpy(data, serializedState.data(), size);
         return fmi3OK;
 
@@ -1000,8 +1023,15 @@ fmi3Status fmi3DeserializeFMUState(fmi3Instance c, const fmi3Byte data[], size_t
 
     try {
 
-        std::vector serializedState(data, data + size);
-        component->slave->deserializeFMUState(serializedState, state);
+        const std::vector<uint8_t> serializedState(data, data + size);
+        void *slave_state = nullptr;
+        component->slave->deserializeFMUState(serializedState, &slave_state);
+        auto *wrapper = new Fmi3FMUStateWrapper();
+        wrapper->slave_state = slave_state;
+        wrapper->component_state = component->state;
+        wrapper->discreteStatesNeedUpdate = component->discreteStatesNeedUpdate;
+        wrapper->eventModeUsed = component->eventModeUsed;
+        *state = wrapper;
         return fmi3OK;
 
     } catch (const fmu4cpp::fatal_error &ex) {
@@ -1296,6 +1326,10 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
     try {
         fmu4cpp::discrete_states_info info{};
         component->slave->update_discrete_states(info);
+        component->slave->set_discrete_states_info(info);
+        if (!info.discreteStatesNeedUpdate) {
+            component->slave->set_has_pending_events(false);
+        }
 
         *discreteStatesNeedUpdate = info.discreteStatesNeedUpdate ? fmi3True : fmi3False;
         *terminateSimulation = info.terminateSimulation ? fmi3True : fmi3False;
