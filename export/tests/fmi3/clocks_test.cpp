@@ -67,6 +67,21 @@ TEST_CASE("fmi3_clocks_and_intervals") {
     REQUIRE(fmi3GetShiftDecimal(c, &periodicVr, 1, &shiftValue) == fmi3OK);
     CHECK(shiftValue == 0.05);
 
+    fmi3Float64 newShift = 0.08;
+    REQUIRE(fmi3SetShiftDecimal(c, &periodicVr, 1, &newShift) == fmi3OK);
+    REQUIRE(fmi3GetShiftDecimal(c, &periodicVr, 1, &shiftValue) == fmi3OK);
+    CHECK(shiftValue == 0.08);
+
+    // Negative tests for shift
+    fmi3ValueReference nonClockVr = 4;
+    CHECK(fmi3SetShiftDecimal(c, &nonClockVr, 1, &newShift) == fmi3Error);
+    CHECK(fmi3SetShiftDecimal(c, nullptr, 1, &newShift) == fmi3Error);
+    CHECK(fmi3SetShiftDecimal(c, &periodicVr, 1, nullptr) == fmi3Error);
+
+    // Reset shift back to 0.05
+    fmi3Float64 origShift = 0.05;
+    REQUIRE(fmi3SetShiftDecimal(c, &periodicVr, 1, &origShift) == fmi3OK);
+
     // 5. Test Interval Decimal get/set and qualifiers on periodic clock (VR 3)
     fmi3Float64 intervalVal = 0.02;
     REQUIRE(fmi3SetIntervalDecimal(c, &periodicVr, 1, &intervalVal) == fmi3OK);

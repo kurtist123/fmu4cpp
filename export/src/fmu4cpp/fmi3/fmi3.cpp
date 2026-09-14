@@ -1204,16 +1204,12 @@ fmi3Status fmi3GetShiftDecimal(fmi3Instance instance,
         return fmi3Error;
     }
     try {
-        for (size_t i = 0; i < nValueReferences; ++i) {
-            auto *v = component->slave->get_variable(valueReferences[i]);
-            if (!v || v->type() != fmu4cpp::data_type::CLOCK) {
-                component->logger->log(fmiError, "fmi3GetShiftDecimal: ValueReference is not a Clock.");
-                return fmi3Error;
-            }
-            auto *cv = dynamic_cast<const fmu4cpp::ClockVariable *>(v);
-            shifts[i] = cv->getShiftDecimal().value_or(0.0);
-        }
+        component->slave->get_shift_decimal(valueReferences, nValueReferences, shifts);
         return fmi3OK;
+    } catch (const fmu4cpp::fatal_error &ex) {
+        component->logger->log(fmiFatal, ex.what());
+        component->state = Fmi3Component::State::Invalid;
+        return fmi3Fatal;
     } catch (const std::exception &ex) {
         component->logger->log(fmiError, ex.what());
         return fmi3Error;
@@ -1271,8 +1267,29 @@ fmi3Status fmi3SetShiftDecimal(fmi3Instance instance,
                                const fmi3ValueReference valueReferences[],
                                size_t nValueReferences,
                                const fmi3Float64 shifts[]) {
-
-    return fmi3Error;
+    if (!instance) return fmi3Error;
+    const auto component = static_cast<Fmi3Component *>(instance);
+    if (component->state == Fmi3Component::State::Invalid) return fmi3Fatal;
+    if (component->state != Fmi3Component::State::EventMode &&
+        component->state != Fmi3Component::State::InitializationMode) {
+        component->logger->log(fmiError, "fmi3SetShiftDecimal: Invalid state.");
+        return fmi3Error;
+    }
+    if (nValueReferences > 0 && (!valueReferences || !shifts)) {
+        component->logger->log(fmiError, "fmi3SetShiftDecimal: Null pointer passed.");
+        return fmi3Error;
+    }
+    try {
+        component->slave->set_shift_decimal(valueReferences, nValueReferences, shifts);
+        return fmi3OK;
+    } catch (const fmu4cpp::fatal_error &ex) {
+        component->logger->log(fmiFatal, ex.what());
+        component->state = Fmi3Component::State::Invalid;
+        return fmi3Fatal;
+    } catch (const std::exception &ex) {
+        component->logger->log(fmiError, ex.what());
+        return fmi3Error;
+    }
 }
 
 fmi3Status fmi3SetShiftFraction(fmi3Instance instance,

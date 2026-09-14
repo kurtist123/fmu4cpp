@@ -174,6 +174,7 @@ namespace fmu4cpp {
         virtual void on_clock_activated(unsigned int vr) {}
         virtual void on_clock_deactivated(unsigned int vr) {}
         virtual void on_interval_changed(unsigned int vr, double interval) {}
+        virtual void on_shift_changed(unsigned int vr, double shift) {}
 
         void deactivate_active_clocks();
         [[nodiscard]] bool is_clock_active(unsigned int vr) const;
@@ -184,6 +185,8 @@ namespace fmu4cpp {
         void set_clock(const unsigned int vr[], size_t nvr, const bool value[]);
         void get_interval_decimal(const unsigned int vr[], size_t nvr, double intervals[], interval_qualifier_t qualifiers[]);
         void set_interval_decimal(const unsigned int vr[], size_t nvr, const double intervals[]);
+        void get_shift_decimal(const unsigned int vr[], size_t nvr, double shifts[]) const;
+        void set_shift_decimal(const unsigned int vr[], size_t nvr, const double shifts[]);
 
         void get_integer(const unsigned int vr[], size_t nvr, int value[]) const;
         void get_real(const unsigned int vr[], size_t nvr, double value[]) const;

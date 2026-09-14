@@ -297,6 +297,38 @@ void fmu_base::set_interval_decimal(const unsigned int vr[], size_t nvr, const d
     }
 }
 
+void fmu_base::get_shift_decimal(const unsigned int vr[], size_t nvr, double shifts[]) const {
+    for (size_t i = 0; i < nvr; ++i) {
+        auto it = vrToVariable_.find(vr[i]);
+        if (it == vrToVariable_.end()) {
+            throw std::out_of_range("Invalid valueReference: " + std::to_string(vr[i]));
+        }
+        auto *clockVar = dynamic_cast<const ClockVariable *>(it->second);
+        if (!clockVar) {
+            throw std::invalid_argument("Variable with valueReference " + std::to_string(vr[i]) + " is not a Clock");
+        }
+        shifts[i] = clockVar->getShiftDecimal().value_or(0.0);
+    }
+}
+
+void fmu_base::set_shift_decimal(const unsigned int vr[], size_t nvr, const double shifts[]) {
+    for (size_t i = 0; i < nvr; ++i) {
+        auto it = vrToVariable_.find(vr[i]);
+        if (it == vrToVariable_.end()) {
+            throw std::out_of_range("Invalid valueReference: " + std::to_string(vr[i]));
+        }
+        auto *clockVar = dynamic_cast<ClockVariable *>(it->second);
+        if (!clockVar) {
+            throw std::invalid_argument("Variable with valueReference " + std::to_string(vr[i]) + " is not a Clock");
+        }
+        clockVar->setShiftDecimal(shifts[i]);
+        if (clockVar->is_time_based()) {
+            clockVar->compute_initial_tick_time(time_);
+        }
+        on_shift_changed(vr[i], shifts[i]);
+    }
+}
+
 void fmu_base::get_string(const unsigned int vr[], size_t nvr, const char *value[]) {
     stringBuffer_.clear();
     for (size_t i = 0; i < nvr; i++) {
