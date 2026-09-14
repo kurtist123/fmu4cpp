@@ -1062,16 +1062,6 @@ fmi3Status fmi3GetClock(fmi3Instance instance,
     }
     try {
         component->slave->get_clock(valueReferences, nValueReferences, values);
-        // Reset output clocks to inactive after query (one-shot)
-        for (size_t i = 0; i < nValueReferences; ++i) {
-            auto *var = component->slave->get_variable(valueReferences[i]);
-            if (var && var->causality() == fmu4cpp::causality_t::OUTPUT) {
-                auto *cv = const_cast<fmu4cpp::ClockVariable *>(dynamic_cast<const fmu4cpp::ClockVariable *>(var));
-                if (cv && values[i]) {
-                    cv->force_set(false);
-                }
-            }
-        }
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
         component->logger->log(fmiFatal, ex.what());
@@ -1345,9 +1335,11 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
             auto *v = component->slave->get_variable(vr);
             if (v && v->type() == fmu4cpp::data_type::CLOCK) {
                 auto *cv = const_cast<fmu4cpp::ClockVariable *>(dynamic_cast<const fmu4cpp::ClockVariable *>(v));
-                if (cv && cv->causality() == fmu4cpp::causality_t::INPUT && cv->get()) {
+                if (cv && cv->get()) {
                     cv->force_set(false);
-                    component->slave->on_clock_deactivated(vr);
+                    if (cv->causality() == fmu4cpp::causality_t::INPUT) {
+                        component->slave->on_clock_deactivated(vr);
+                    }
                 }
             }
         }

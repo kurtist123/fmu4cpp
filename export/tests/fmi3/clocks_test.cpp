@@ -101,18 +101,18 @@ TEST_CASE("fmi3_clocks_and_intervals") {
     REQUIRE(fmi3GetFloat64(c, &clockedVr, 1, &varVal, 1) == fmi3OK);
     CHECK(varVal == 99.0);
 
-    // 7. Output clock one-shot reading
+    // 7. Output clock reading in Event Mode
     // Activating clockIn triggered on_clock_activated, which set clockOut_ = true
     fmi3ValueReference clockOutVr = 2;
     fmi3Clock clockOutVal = fmi3False;
     REQUIRE(fmi3GetClock(c, &clockOutVr, 1, &clockOutVal) == fmi3OK);
     CHECK(clockOutVal == fmi3True);
 
-    // Second read of output clock returns false because it is one-shot deactivated
+    // Second read of output clock in the same event iteration MUST still return true (idempotent read)
     REQUIRE(fmi3GetClock(c, &clockOutVr, 1, &clockOutVal) == fmi3OK);
-    CHECK(clockOutVal == fmi3False);
+    CHECK(clockOutVal == fmi3True);
 
-    // 8. UpdateDiscreteStates deactivates input clocks
+    // 8. UpdateDiscreteStates deactivates active clocks (both input and output)
     fmi3Boolean discreteStatesNeedUpdate = fmi3True;
     fmi3Boolean terminateSimulation = fmi3False;
     fmi3Boolean nominalsChanged = fmi3False;
@@ -131,6 +131,10 @@ TEST_CASE("fmi3_clocks_and_intervals") {
 
     // Since clockIn was deactivated, accessing clockedVar again fails
     REQUIRE(fmi3GetFloat64(c, &clockedVr, 1, &varVal, 1) == fmi3Error);
+
+    // Output clock is now deactivated by fmi3UpdateDiscreteStates
+    REQUIRE(fmi3GetClock(c, &clockOutVr, 1, &clockOutVal) == fmi3OK);
+    CHECK(clockOutVal == fmi3False);
 
     // 9. EnterStepMode, Terminate, and Free
     REQUIRE(fmi3EnterStepMode(c) == fmi3OK);
@@ -180,13 +184,13 @@ TEST_CASE("fmi3_clocks_fmu_state_rollback") {
     REQUIRE(fmi3GetFMUState(c, &state1) == fmi3OK);
     REQUIRE(state1 != nullptr);
 
-    // Read and consume clockOut (one-shot deactivated)
+    // Read clockOut (multiple calls in same event iteration stay active)
     fmi3ValueReference clockOutVr = 2;
     fmi3Clock clockOutVal = fmi3False;
     REQUIRE(fmi3GetClock(c, &clockOutVr, 1, &clockOutVal) == fmi3OK);
     CHECK(clockOutVal == fmi3True);
     REQUIRE(fmi3GetClock(c, &clockOutVr, 1, &clockOutVal) == fmi3OK);
-    CHECK(clockOutVal == fmi3False);
+    CHECK(clockOutVal == fmi3True);
 
     // Read and clear interval qualifier
     fmi3Float64 queriedInterval = 0.0;
@@ -196,7 +200,7 @@ TEST_CASE("fmi3_clocks_fmu_state_rollback") {
     REQUIRE(fmi3GetIntervalDecimal(c, &periodicVr, 1, &queriedInterval, &qualifier) == fmi3OK);
     CHECK(qualifier == fmi3IntervalUnchanged);
 
-    // Update discrete states deactivates clockIn
+    // Update discrete states deactivates active clocks (both input and output)
     fmi3Boolean discreteStatesNeedUpdate = fmi3True;
     fmi3Boolean terminateSimulation = fmi3False;
     fmi3Boolean nominalsChanged = fmi3False;
@@ -215,6 +219,10 @@ TEST_CASE("fmi3_clocks_fmu_state_rollback") {
     // clockedVar access fails because clockIn is inactive
     REQUIRE(fmi3GetFloat64(c, &clockedVr, 1, &varVal, 1) == fmi3Error);
 
+    // clockOut is also deactivated by fmi3UpdateDiscreteStates
+    REQUIRE(fmi3GetClock(c, &clockOutVr, 1, &clockOutVal) == fmi3OK);
+    CHECK(clockOutVal == fmi3False);
+
     // Enter step mode and advance step
     REQUIRE(fmi3EnterStepMode(c) == fmi3OK);
     fmi3Boolean eventHandlingNeeded = fmi3False;
@@ -229,7 +237,7 @@ TEST_CASE("fmi3_clocks_fmu_state_rollback") {
     REQUIRE(fmi3GetClock(c, &clockOutVr, 1, &clockOutVal) == fmi3OK);
     CHECK(clockOutVal == fmi3True);
     REQUIRE(fmi3GetClock(c, &clockOutVr, 1, &clockOutVal) == fmi3OK);
-    CHECK(clockOutVal == fmi3False);
+    CHECK(clockOutVal == fmi3True);
 
     // Verify clockIn restored to active: clockedVar access succeeds and has the saved value
     REQUIRE(fmi3GetFloat64(c, &clockedVr, 1, &varVal, 1) == fmi3OK);
