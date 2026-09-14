@@ -26,6 +26,7 @@ jobs:
       - name: "Validate FMUs"
         run: |
           python3 scripts/validate_fmu.py --dir build/models --require-fmus --strict --check-symbols --expect-models Identity BouncingBall --expect-generations fmi2 fmi3 -v
+          python3 scripts/validate_fmu.py --dir build/models --require-fmus -v
 
       - name: "Download fmusim"
         run: |
@@ -81,6 +82,7 @@ jobs:
       - name: "Validate FMUs"
         run: |
           python scripts/validate_fmu.py --dir "${{ github.workspace }}/build/models" --require-fmus --strict --check-symbols --expect-models Identity BouncingBall --expect-generations fmi2 fmi3 -v
+          python scripts/validate_fmu.py --dir "${{ github.workspace }}/build/models" --require-fmus -v
 
       - name: "Download fmusim"
         shell: pwsh

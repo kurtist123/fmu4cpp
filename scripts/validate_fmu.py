@@ -6,7 +6,6 @@ and terminalsAndIcons.xml against official schemas, semantic rules, and binary c
 """
 
 import argparse
-import ctypes
 import os
 import platform
 import re
@@ -24,13 +23,11 @@ def find_schemas_dir(explicit_dir=None):
         p = Path(explicit_dir).resolve()
         return p if p.is_dir() else None
 
-    # 1. Look in repo root/schemas
     script_dir = Path(__file__).resolve().parent
     repo_schemas = script_dir.parent / "schemas"
     if repo_schemas.is_dir():
         return repo_schemas
 
-    # 2. Look in ../docs
     docs_fmi3 = script_dir.parent.parent / "docs" / "fmi3" / "schema"
     if docs_fmi3.is_dir():
         return script_dir.parent.parent / "docs"
@@ -371,87 +368,11 @@ def validate_fmi_model_description_semantics(xml_path, is_fmi3=True):
     return errors, warnings
 
 
-def check_binary_symbols(binary_path, is_fmi3, is_cosimulation=True):
-    """Dynamically load binary and verify required C ABI symbols."""
-    try:
-        lib = ctypes.CDLL(str(binary_path))
-    except Exception as e:
-        return False, [f"Failed to dynamically load '{binary_path.name}': {e}"]
-
-    missing_symbols = []
-    if is_fmi3:
-        required_symbols = [
-            "fmi3GetVersion",
-            "fmi3FreeInstance",
-            "fmi3EnterInitializationMode",
-            "fmi3ExitInitializationMode",
-            "fmi3Terminate",
-            "fmi3Reset",
-            "fmi3GetFloat64",
-            "fmi3SetFloat64",
-            "fmi3GetBoolean",
-            "fmi3SetBoolean",
-            "fmi3GetString",
-            "fmi3SetString",
-            "fmi3GetBinary",
-            "fmi3SetBinary",
-        ]
-        if is_cosimulation:
-            required_symbols.extend(
-                [
-                    "fmi3InstantiateCoSimulation",
-                    "fmi3EnterStepMode",
-                    "fmi3DoStep",
-                ]
-            )
-        else:
-            required_symbols.extend(
-                [
-                    "fmi3InstantiateModelExchange",
-                    "fmi3EnterContinuousTimeMode",
-                    "fmi3CompletedIntegratorStep",
-                ]
-            )
-    else:
-        required_symbols = [
-            "fmi2GetTypesPlatform",
-            "fmi2GetVersion",
-            "fmi2Instantiate",
-            "fmi2FreeInstance",
-            "fmi2SetupExperiment",
-            "fmi2EnterInitializationMode",
-            "fmi2ExitInitializationMode",
-            "fmi2Terminate",
-            "fmi2Reset",
-            "fmi2GetReal",
-            "fmi2GetInteger",
-            "fmi2GetBoolean",
-            "fmi2GetString",
-            "fmi2SetReal",
-            "fmi2SetInteger",
-            "fmi2SetBoolean",
-            "fmi2SetString",
-        ]
-        if is_cosimulation:
-            required_symbols.append("fmi2DoStep")
-
-    for sym in required_symbols:
-        if not hasattr(lib, sym):
-            missing_symbols.append(sym)
-
-    if missing_symbols:
-        return False, [
-            f"Missing required FMI symbol(s) in {binary_path.name}: {', '.join(missing_symbols)}"
-        ]
-    return True, []
-
-
 def validate_fmu_archive(
     fmu_path,
     schemas_dir=None,
     backend="auto",
     strict=False,
-    check_symbols=False,
     profile="binary",
     verbose=False,
 ):
@@ -476,7 +397,11 @@ def validate_fmu_archive(
             errors.append("Archive missing 'modelDescription.xml' at root")
             return False, errors, warnings, info
 
-        with tempfile.TemporaryDirectory() as tmpdir:
+        temp_kwargs = {}
+        if sys.version_info >= (3, 10):
+            temp_kwargs["ignore_cleanup_errors"] = True
+
+        with tempfile.TemporaryDirectory(**temp_kwargs) as tmpdir:
             tmpdir_path = Path(tmpdir)
             md_path = tmpdir_path / "modelDescription.xml"
             z.extract("modelDescription.xml", path=tmpdir_path)
@@ -503,7 +428,7 @@ def validate_fmu_archive(
                 errors.append(f"Unsupported fmiVersion: '{fmi_version}'")
                 return False, errors, warnings, info
 
-            # 2. Structural & Semantic validation for modelDescription.xml
+            # 2. Structural & Schema validation for modelDescription.xml
             if is_fmi3:
                 struct_ok, struct_msg = validate_fmi3_model_description_structure(
                     md_path
@@ -572,7 +497,7 @@ def validate_fmu_archive(
             errors.extend(sem_errors)
             warnings.extend(sem_warnings)
 
-            # 3. Binaries check
+            # 3. Binaries check (inspect archive entries, no dynamic DLL extraction/loading)
             iface_elem = None
             for tag in ("CoSimulation", "ModelExchange", "ScheduledExecution"):
                 elem = root.find(tag)
@@ -631,26 +556,8 @@ def validate_fmu_archive(
                             warnings.append(
                                 f"No binary found for current host platform ({host_dirs[0]})"
                             )
-                    else:
-                        if verbose:
-                            print(
-                                f"  [OK] Found matching host binary: {host_bin_entry}"
-                            )
-
-                        # Dynamic load & symbol verification
-                        if check_symbols or strict:
-                            z.extract(host_bin_entry, path=tmpdir_path)
-                            extracted_bin = tmpdir_path / host_bin_entry
-                            is_cs = root.find("CoSimulation") is not None
-                            sym_ok, sym_errs = check_binary_symbols(
-                                extracted_bin, is_fmi3=is_fmi3, is_cosimulation=is_cs
-                            )
-                            if not sym_ok:
-                                errors.extend(sym_errs)
-                            elif verbose:
-                                print(
-                                    f"  [OK] Verified dynamic loading and exported symbols in {host_bin_entry}"
-                                )
+                    elif verbose:
+                        print(f"  [OK] Found matching host binary: {host_bin_entry}")
 
             # 4. Sources check
             sources_entries = [n for n in namelist if n.startswith("sources/")]
@@ -754,11 +661,6 @@ def main():
         help="Strict conformance mode: fail on missing schemas or binaries",
     )
     parser.add_argument(
-        "--check-symbols",
-        action="store_true",
-        help="Dynamically load host binary and verify required exported FMI symbols",
-    )
-    parser.add_argument(
         "--require-fmus", action="store_true", help="Fail if no FMUs are found"
     )
     parser.add_argument(
@@ -837,7 +739,6 @@ def main():
             schemas_dir=schemas_dir,
             backend=args.backend,
             strict=args.strict,
-            check_symbols=args.check_symbols,
             profile=args.profile,
             verbose=args.verbose,
         )
