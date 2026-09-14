@@ -53,6 +53,23 @@ std::optional<BinaryVariable> fmu_base::get_binary_variable(const std::string &n
     return get_variable<BinaryVariable>(name);
 }
 
+std::optional<ClockVariable> fmu_base::get_clock_variable(const std::string &name) const {
+    return get_variable<ClockVariable>(name);
+}
+
+bool fmu_base::has_clocks() const {
+    for (const auto &v : variables_) {
+        if (v->type() == data_type::CLOCK) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool fmu_base::has_event_mode() const {
+    return get_model_info().hasEventMode || has_clocks();
+}
+
 void fmu_base::enter_initialisation_mode(double start, std::optional<double> stop, std::optional<double> tolerance) {
     time_ = start;
     stop_ = stop;
@@ -93,6 +110,16 @@ void fmu_base::reset() {
     stringBuffer_.clear();
     binaryBuffer_.clear();
 
+    for (auto &v : variables_) {
+        if (v->type() == data_type::CLOCK) {
+            auto *cv = dynamic_cast<ClockVariable *>(v.get());
+            if (cv) {
+                cv->force_set(false);
+                cv->resetIntervalQualifier();
+            }
+        }
+    }
+
     if (state_ops_ && get_state_ptr_) {
         void *dst = get_state_ptr_(this);
         state_ops_->reset_inplace(dst);
@@ -124,6 +151,74 @@ void fmu_base::get_boolean(const unsigned int vr[], size_t nvr, int value[]) con
 
 void fmu_base::get_boolean(const unsigned int vr[], size_t nvr, bool value[]) const {
     get_values<bool>(vr, nvr, value, nvr);
+}
+
+void fmu_base::get_clock(const unsigned int vr[], size_t nvr, bool value[]) const {
+    for (size_t i = 0; i < nvr; ++i) {
+        auto it = vrToVariable_.find(vr[i]);
+        if (it == vrToVariable_.end()) {
+            throw std::out_of_range("Invalid valueReference: " + std::to_string(vr[i]));
+        }
+        auto *clockVar = dynamic_cast<const ClockVariable *>(it->second);
+        if (!clockVar) {
+            throw std::invalid_argument("Variable with valueReference " + std::to_string(vr[i]) + " is not a Clock");
+        }
+        value[i] = clockVar->get();
+    }
+}
+
+void fmu_base::set_clock(const unsigned int vr[], size_t nvr, const bool value[]) {
+    for (size_t i = 0; i < nvr; ++i) {
+        auto it = vrToVariable_.find(vr[i]);
+        if (it == vrToVariable_.end()) {
+            throw std::out_of_range("Invalid valueReference: " + std::to_string(vr[i]));
+        }
+        auto *clockVar = dynamic_cast<ClockVariable *>(it->second);
+        if (!clockVar) {
+            throw std::invalid_argument("Variable with valueReference " + std::to_string(vr[i]) + " is not a Clock");
+        }
+        if (clockVar->causality() != causality_t::INPUT) {
+            throw std::logic_error("Cannot set non-input Clock variable with valueReference " + std::to_string(vr[i]));
+        }
+        bool prev = clockVar->get();
+        clockVar->set(value[i]);
+        if (!prev && value[i]) {
+            on_clock_activated(vr[i]);
+        } else if (prev && !value[i]) {
+            on_clock_deactivated(vr[i]);
+        }
+    }
+}
+
+void fmu_base::get_interval_decimal(const unsigned int vr[], size_t nvr, double intervals[], interval_qualifier_t qualifiers[]) const {
+    for (size_t i = 0; i < nvr; ++i) {
+        auto it = vrToVariable_.find(vr[i]);
+        if (it == vrToVariable_.end()) {
+            throw std::out_of_range("Invalid valueReference: " + std::to_string(vr[i]));
+        }
+        auto *clockVar = dynamic_cast<const ClockVariable *>(it->second);
+        if (!clockVar) {
+            throw std::invalid_argument("Variable with valueReference " + std::to_string(vr[i]) + " is not a Clock");
+        }
+        auto d = clockVar->getIntervalDecimal();
+        intervals[i] = d.value_or(0.0);
+        qualifiers[i] = clockVar->getIntervalQualifier();
+        const_cast<ClockVariable *>(clockVar)->resetIntervalQualifier();
+    }
+}
+
+void fmu_base::set_interval_decimal(const unsigned int vr[], size_t nvr, const double intervals[]) {
+    for (size_t i = 0; i < nvr; ++i) {
+        auto it = vrToVariable_.find(vr[i]);
+        if (it == vrToVariable_.end()) {
+            throw std::out_of_range("Invalid valueReference: " + std::to_string(vr[i]));
+        }
+        auto *clockVar = dynamic_cast<ClockVariable *>(it->second);
+        if (!clockVar) {
+            throw std::invalid_argument("Variable with valueReference " + std::to_string(vr[i]) + " is not a Clock");
+        }
+        clockVar->setIntervalDecimal(intervals[i]);
+    }
 }
 
 void fmu_base::get_string(const unsigned int vr[], size_t nvr, const char *value[]) {

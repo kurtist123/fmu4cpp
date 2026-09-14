@@ -46,10 +46,16 @@ namespace fmu4cpp {
     enum class interval_variability_t {
         CONSTANT,
         FIXED,
-        CALCULATED,
         TUNABLE,
         CHANGING,
-        COUNTDOWN
+        COUNTDOWN,
+        TRIGGERED
+    };
+
+    enum class interval_qualifier_t {
+        INTERVAL_NOT_YET_KNOWN,
+        INTERVAL_UNCHANGED,
+        INTERVAL_CHANGED
     };
 
     enum class data_type {
@@ -267,6 +273,10 @@ namespace fmu4cpp {
                 throw std::logic_error("Cannot set value for variable with causality: " + to_string(causality_));
             }
 
+            access_->set(value);
+        }
+
+        void force_set(T value) {
             access_->set(value);
         }
 
@@ -581,10 +591,14 @@ namespace fmu4cpp {
 
         [[nodiscard]] std::optional<interval_variability_t> getIntervalVariability() const { return intervalVariability_; }
         [[nodiscard]] std::optional<double> getIntervalDecimal() const { return intervalDecimal_; }
+        [[nodiscard]] std::optional<double> getShiftDecimal() const { return shiftDecimal_; }
+        [[nodiscard]] bool supportsFraction() const { return supportsFraction_; }
         [[nodiscard]] std::optional<uint64_t> getResolution() const { return resolution_; }
         [[nodiscard]] std::optional<uint64_t> getIntervalCounter() const { return intervalCounter_; }
         [[nodiscard]] std::optional<uint64_t> getShiftCounter() const { return shiftCounter_; }
         [[nodiscard]] std::optional<uint32_t> getPriority() const { return priority_; }
+        [[nodiscard]] bool canBeDeactivated() const { return canBeDeactivated_; }
+        [[nodiscard]] interval_qualifier_t getIntervalQualifier() const { return intervalQualifier_; }
 
         ClockVariable &setIntervalVariability(interval_variability_t iv) {
             intervalVariability_ = iv;
@@ -592,6 +606,22 @@ namespace fmu4cpp {
         }
         ClockVariable &setIntervalDecimal(double d) {
             intervalDecimal_ = d;
+            intervalQualifier_ = interval_qualifier_t::INTERVAL_CHANGED;
+            return *this;
+        }
+        ClockVariable &setIntervalQualifier(interval_qualifier_t q) {
+            intervalQualifier_ = q;
+            return *this;
+        }
+        void resetIntervalQualifier() {
+            intervalQualifier_ = interval_qualifier_t::INTERVAL_UNCHANGED;
+        }
+        ClockVariable &setShiftDecimal(double s) {
+            shiftDecimal_ = s;
+            return *this;
+        }
+        ClockVariable &setSupportsFraction(bool sf) {
+            supportsFraction_ = sf;
             return *this;
         }
         ClockVariable &setResolution(uint64_t r) {
@@ -610,14 +640,22 @@ namespace fmu4cpp {
             priority_ = p;
             return *this;
         }
+        ClockVariable &setCanBeDeactivated(bool cbd) {
+            canBeDeactivated_ = cbd;
+            return *this;
+        }
 
     private:
         std::optional<interval_variability_t> intervalVariability_;
         std::optional<double> intervalDecimal_;
+        std::optional<double> shiftDecimal_;
+        bool supportsFraction_{false};
         std::optional<uint64_t> resolution_;
         std::optional<uint64_t> intervalCounter_;
         std::optional<uint64_t> shiftCounter_;
         std::optional<uint32_t> priority_;
+        bool canBeDeactivated_{false};
+        interval_qualifier_t intervalQualifier_{interval_qualifier_t::INTERVAL_UNCHANGED};
     };
 
     bool requires_start(const VariableBase &v);

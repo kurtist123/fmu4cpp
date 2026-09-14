@@ -85,6 +85,7 @@ std::string fmu_base::make_description() const {
        << "\t\tcanBeInstantiatedOnlyOncePerProcess=\"" << m.canBeInstantiatedOnlyOncePerProcess << "\"\n"
        << "\t\tcanGetAndSetFMUstate=\"" << m.canGetAndSetFMUstate << "\"\n"
        << "\t\tcanSerializeFMUstate=\"" << m.canSerializeFMUstate << "\"\n"
+       << "\t\thasEventMode=\"" << (m.hasEventMode || has_clocks()) << "\"\n"
        << "\t\tprovidesDirectionalDerivatives=\"false\"" << "\n"
        << "\t\tprovidesAdjointDerivatives=\"false\"" << "\n"
        << "\t\tprovidesPerElementDependencies=\"false\"" << "\n"
@@ -127,15 +128,26 @@ std::string fmu_base::make_description() const {
            << escape_xml(v->name()) << "\" valueReference=\"" << v->value_reference() << "\""
            << " causality=\"" << to_string(v->causality()) << "\"";
 
-        if (variability) {
-            ss << " variability=\"" << to_string(*variability) << "\"";
-        }
-        if (initial) {
-            ss << " initial=\"" << to_string(*initial) << "\"";
+        if (v->type() != data_type::CLOCK) {
+            if (variability) {
+                ss << " variability=\"" << to_string(*variability) << "\"";
+            }
+            if (initial) {
+                ss << " initial=\"" << to_string(*initial) << "\"";
+            }
         }
 
         if (auto desc = v->getDescription(); !desc.empty()) {
             ss << " description=\"" << escape_xml(desc) << "\"";
+        }
+
+        if (const auto &clocks = v->clocks(); !clocks.empty()) {
+            ss << " clocks=\"";
+            for (size_t i = 0; i < clocks.size(); ++i) {
+                if (i > 0) ss << " ";
+                ss << clocks[i];
+            }
+            ss << "\"";
         }
 
         bool with_start = requires_start(*v);
@@ -166,6 +178,33 @@ std::string fmu_base::make_description() const {
         } else if (v->type() == data_type::BOOLEAN) {
             if (with_start && startStr) {
                 ss << " start=\"" << *startStr << "\"";
+            }
+        } else if (v->type() == data_type::CLOCK) {
+            auto *cv = static_cast<const ClockVariable *>(v);
+            ss << " intervalVariability=\"" << to_string(cv->getIntervalVariability().value_or(interval_variability_t::TRIGGERED)) << "\"";
+            if (cv->canBeDeactivated()) {
+                ss << " canBeDeactivated=\"true\"";
+            }
+            if (auto p = cv->getPriority()) {
+                ss << " priority=\"" << *p << "\"";
+            }
+            if (auto id = cv->getIntervalDecimal()) {
+                ss << " intervalDecimal=\"" << *id << "\"";
+            }
+            if (auto sd = cv->getShiftDecimal()) {
+                ss << " shiftDecimal=\"" << *sd << "\"";
+            }
+            if (cv->supportsFraction()) {
+                ss << " supportsFraction=\"true\"";
+            }
+            if (auto r = cv->getResolution()) {
+                ss << " resolution=\"" << *r << "\"";
+            }
+            if (auto ic = cv->getIntervalCounter()) {
+                ss << " intervalCounter=\"" << *ic << "\"";
+            }
+            if (auto sc = cv->getShiftCounter()) {
+                ss << " shiftCounter=\"" << *sc << "\"";
             }
         }
 

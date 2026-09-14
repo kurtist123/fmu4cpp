@@ -88,6 +88,15 @@ namespace fmu4cpp {
         void *model_state{nullptr};
     };
 
+    struct discrete_states_info {
+        bool discreteStatesNeedUpdate{false};
+        bool terminateSimulation{false};
+        bool nominalsOfContinuousStatesChanged{false};
+        bool valuesOfContinuousStatesChanged{false};
+        bool nextEventTimeDefined{false};
+        double nextEventTime{0.0};
+    };
+
     class fmu_base {
 
     public:
@@ -131,12 +140,28 @@ namespace fmu4cpp {
         [[nodiscard]] std::optional<BoolVariable> get_bool_variable(const std::string &name) const;
         [[nodiscard]] std::optional<StringVariable> get_string_variable(const std::string &name) const;
         [[nodiscard]] std::optional<BinaryVariable> get_binary_variable(const std::string &name) const;
+        [[nodiscard]] std::optional<ClockVariable> get_clock_variable(const std::string &name) const;
+
+        [[nodiscard]] bool has_clocks() const;
+        [[nodiscard]] bool has_event_mode() const;
 
         void enter_initialisation_mode(double start, std::optional<double> stop, std::optional<double> tolerance);
         virtual void exit_initialisation_mode();
         bool step(double currentTime, double dt);
         virtual void terminate();
         virtual void reset();
+
+        virtual void enter_event_mode() {}
+        virtual void update_discrete_states(discrete_states_info &info) {}
+        virtual void enter_step_mode() {}
+        [[nodiscard]] virtual bool has_pending_events() const { return false; }
+        virtual void on_clock_activated(unsigned int vr) {}
+        virtual void on_clock_deactivated(unsigned int vr) {}
+
+        void get_clock(const unsigned int vr[], size_t nvr, bool value[]) const;
+        void set_clock(const unsigned int vr[], size_t nvr, const bool value[]);
+        void get_interval_decimal(const unsigned int vr[], size_t nvr, double intervals[], interval_qualifier_t qualifiers[]) const;
+        void set_interval_decimal(const unsigned int vr[], size_t nvr, const double intervals[]);
 
         void get_integer(const unsigned int vr[], size_t nvr, int value[]) const;
         void get_real(const unsigned int vr[], size_t nvr, double value[]) const;

@@ -57,14 +57,14 @@ namespace fmu4cpp {
                 return "constant";
             case interval_variability_t::FIXED:
                 return "fixed";
-            case interval_variability_t::CALCULATED:
-                return "calculated";
             case interval_variability_t::TUNABLE:
                 return "tunable";
             case interval_variability_t::CHANGING:
                 return "changing";
             case interval_variability_t::COUNTDOWN:
                 return "countdown";
+            case interval_variability_t::TRIGGERED:
+                return "triggered";
         }
         throw std::logic_error("Invalid interval_variability encountered");
     }
@@ -104,6 +104,9 @@ namespace fmu4cpp {
     }
 
     bool requires_start(const VariableBase &v) {
+        if (v.type() == data_type::CLOCK) {
+            return false;
+        }
         // clang-format off
         return v.initial() == initial_t::EXACT
                || v.initial() == initial_t::APPROX

@@ -29,6 +29,7 @@ namespace fmu4cpp {
         bool canBeInstantiatedOnlyOncePerProcess{false};
         bool canGetAndSetFMUstate{false};
         bool canSerializeFMUstate{false};
+        bool hasEventMode{false};
 
         std::optional<default_experiment> defaultExperiment;
     };

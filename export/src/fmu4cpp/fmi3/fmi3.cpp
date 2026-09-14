@@ -57,8 +57,9 @@ namespace {
             Instantiated = 1 << 0,
             InitializationMode = 1 << 1,
             StepMode = 1 << 2,
-            Terminated = 1 << 3,
-            Invalid = 1 << 4
+            EventMode = 1 << 3,
+            Terminated = 1 << 4,
+            Invalid = 1 << 5
         };
 
         Fmi3Component(std::unique_ptr<fmu4cpp::fmu_base> slave, std::unique_ptr<fmi3Logger> logger)
@@ -73,16 +74,44 @@ namespace {
         State state;
         std::unique_ptr<fmu4cpp::fmu_base> slave;
         std::unique_ptr<fmi3Logger> logger;
+        bool eventModeUsed{false};
+        bool earlyReturnAllowed{false};
+        bool discreteStatesNeedUpdate{false};
     };
 
     constexpr int StatesCanGet = static_cast<int>(Fmi3Component::State::Instantiated) |
                                  static_cast<int>(Fmi3Component::State::InitializationMode) |
                                  static_cast<int>(Fmi3Component::State::StepMode) |
+                                 static_cast<int>(Fmi3Component::State::EventMode) |
                                  static_cast<int>(Fmi3Component::State::Terminated);
 
     constexpr int StatesCanSet = static_cast<int>(Fmi3Component::State::Instantiated) |
                                  static_cast<int>(Fmi3Component::State::InitializationMode) |
-                                 static_cast<int>(Fmi3Component::State::StepMode);
+                                 static_cast<int>(Fmi3Component::State::StepMode) |
+                                 static_cast<int>(Fmi3Component::State::EventMode);
+
+    bool isClockActiveForVariable(const fmu4cpp::fmu_base &slave, const fmu4cpp::VariableBase &v, Fmi3Component::State state) {
+        const auto &clocks = v.clocks();
+        if (clocks.empty()) {
+            return true;
+        }
+        if (state == Fmi3Component::State::InitializationMode || state == Fmi3Component::State::Instantiated) {
+            return true;
+        }
+        if (state != Fmi3Component::State::EventMode) {
+            return false;
+        }
+        for (auto clockVr: clocks) {
+            auto *clockVar = slave.get_variable(clockVr);
+            if (clockVar && clockVar->type() == fmu4cpp::data_type::CLOCK) {
+                auto *cv = dynamic_cast<const fmu4cpp::ClockVariable *>(clockVar);
+                if (cv && cv->get()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
 }// namespace
 
@@ -185,7 +214,18 @@ fmi3Instance fmi3InstantiateCoSimulation(
             return nullptr;
         }
 
+        if (slave->has_clocks() && !eventModeUsed) {
+            logger->log(fmiFatal, "[fmu4cpp] Model declares Clocks, but eventModeUsed is fmi3False.");
+            return nullptr;
+        }
+        if (eventModeUsed && !slave->has_event_mode()) {
+            logger->log(fmiFatal, "[fmu4cpp] eventModeUsed is fmi3True, but model does not support Event Mode.");
+            return nullptr;
+        }
+
         auto c = std::make_unique<Fmi3Component>(std::move(slave), std::move(logger));
+        c->eventModeUsed = (eventModeUsed != fmi3False);
+        c->earlyReturnAllowed = (earlyReturnAllowed != fmi3False);
 
         return c.release();
     } catch (const std::exception &e) {
@@ -196,11 +236,36 @@ fmi3Instance fmi3InstantiateCoSimulation(
     }
 }
 
-fmi3Status fmi3EnterEventMode(fmi3Instance instance) {
-    if (!instance) return fmi3Error;
-    const auto component = static_cast<Fmi3Component *>(instance);
-    component->logger->log(fmiError, "fmi3EnterEventMode is not supported");
-    return fmi3Error;
+fmi3Status fmi3EnterEventMode(fmi3Instance c) {
+    if (!c) {
+        return fmi3Error;
+    }
+    const auto component = static_cast<Fmi3Component *>(c);
+    if (component->state == Fmi3Component::State::Invalid) {
+        return fmi3Fatal;
+    }
+    if (!component->eventModeUsed) {
+        component->logger->log(fmiError, "fmi3EnterEventMode: Event Mode was not enabled during instantiation.");
+        return fmi3Error;
+    }
+    if (component->state != Fmi3Component::State::StepMode) {
+        component->logger->log(fmiError, "fmi3EnterEventMode: Invalid state. Expected StepMode.");
+        return fmi3Error;
+    }
+    try {
+        component->slave->enter_event_mode();
+        component->state = Fmi3Component::State::EventMode;
+        component->discreteStatesNeedUpdate = true;
+        return fmi3OK;
+    } catch (const fmu4cpp::fatal_error &ex) {
+        component->logger->log(fmiFatal, ex.what());
+        component->state = Fmi3Component::State::Invalid;
+        return fmi3Fatal;
+    } catch (const std::exception &ex) {
+        component->logger->log(fmiError, ex.what());
+        component->state = Fmi3Component::State::Terminated;
+        return fmi3Error;
+    }
 }
 
 fmi3Status fmi3EnterInitializationMode(fmi3Instance c,
@@ -269,6 +334,13 @@ fmi3Status fmi3ExitInitializationMode(fmi3Instance c) {
     try {
         component->slave->exit_initialisation_mode();
         component->state = Fmi3Component::State::StepMode;
+        if (component->eventModeUsed) {
+            component->state = Fmi3Component::State::EventMode;
+            component->discreteStatesNeedUpdate = true;
+            component->slave->enter_event_mode();
+        } else {
+            component->state = Fmi3Component::State::StepMode;
+        }
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
         component->logger->log(fmiFatal, ex.what());
@@ -292,7 +364,9 @@ fmi3Status fmi3Terminate(fmi3Instance c) {
     if (component->state == Fmi3Component::State::Terminated) {
         return fmi3OK;
     }
-    if (component->state != Fmi3Component::State::StepMode && component->state != Fmi3Component::State::InitializationMode) {
+    if (component->state != Fmi3Component::State::StepMode &&
+        component->state != Fmi3Component::State::InitializationMode &&
+        component->state != Fmi3Component::State::EventMode) {
         component->logger->log(fmiError, "fmi3Terminate called in illegal state.");
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
@@ -352,6 +426,7 @@ fmi3Status fmi3DoStep(fmi3Instance c,
             *earlyReturn = false;
             *terminateSimulation = false;
             *eventHandlingNeeded = false;
+            *eventHandlingNeeded = component->eventModeUsed && component->slave->has_pending_events();
             *lastSuccessfulTime = currentCommunicationPoint + communicationStepSize;
             return fmi3OK;
         }
@@ -387,6 +462,7 @@ fmi3Status fmi3Reset(fmi3Instance c) {
     try {
         component->slave->reset();
         component->state = Fmi3Component::State::Instantiated;
+        component->discreteStatesNeedUpdate = false;
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
         component->logger->log(fmiFatal, ex.what());
@@ -427,6 +503,14 @@ fmi3Status fmi3Reset(fmi3Instance c) {
             component->logger->log(fmiError, "fmi3Get" #Type ": Null pointer passed for values");        \
             component->state = Fmi3Component::State::Terminated;                                         \
             return fmi3Error;                                                                            \
+        }                                                                                                \
+        for (size_t i = 0; i < nvr; ++i) {                                                               \
+            auto *var = component->slave->get_variable(vr[i]);                                           \
+            if (var && !isClockActiveForVariable(*component->slave, *var, component->state)) {           \
+                component->logger->log(fmiError, "Clocked variable with vr " + std::to_string(vr[i]) +   \
+                                                         " accessed when its Clock is not active.");     \
+                return fmi3Error;                                                                        \
+            }                                                                                            \
         }                                                                                                \
         try {                                                                                            \
             component->slave->get_values<CppType>(vr, nvr, reinterpret_cast<CppType *>(value), nValues); \
@@ -470,6 +554,14 @@ fmi3Status fmi3Reset(fmi3Instance c) {
             component->logger->log(fmiError, "fmi3Set" #Type ": Null pointer passed for values");              \
             component->state = Fmi3Component::State::Terminated;                                               \
             return fmi3Error;                                                                                  \
+        }                                                                                                      \
+        for (size_t i = 0; i < nvr; ++i) {                                                                     \
+            auto *var = component->slave->get_variable(vr[i]);                                                 \
+            if (var && !isClockActiveForVariable(*component->slave, *var, component->state)) {                 \
+                component->logger->log(fmiError, "Clocked variable with vr " + std::to_string(vr[i]) +         \
+                                                         " accessed when its Clock is not active.");           \
+                return fmi3Error;                                                                              \
+            }                                                                                                  \
         }                                                                                                      \
         try {                                                                                                  \
             component->slave->set_values<CppType>(vr, nvr, reinterpret_cast<const CppType *>(value), nValues); \
@@ -550,6 +642,14 @@ fmi3Status fmi3GetString(fmi3Instance c,
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
+    for (size_t i = 0; i < nvr; ++i) {
+        auto *var = component->slave->get_variable(vr[i]);
+        if (var && !isClockActiveForVariable(*component->slave, *var, component->state)) {
+            component->logger->log(fmiError, "Clocked variable with vr " + std::to_string(vr[i]) +
+                                                     " accessed when its Clock is not active.");
+            return fmi3Error;
+        }
+    }
     try {
         component->slave->get_string(vr, nvr, value);
         return fmi3OK;
@@ -596,6 +696,14 @@ fmi3Status fmi3SetString(fmi3Instance c,
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
+    for (size_t i = 0; i < nvr; ++i) {
+        auto *var = component->slave->get_variable(vr[i]);
+        if (var && !isClockActiveForVariable(*component->slave, *var, component->state)) {
+            component->logger->log(fmiError, "Clocked variable with vr " + std::to_string(vr[i]) +
+                                                     " accessed when its Clock is not active.");
+            return fmi3Error;
+        }
+    }
     try {
         component->slave->set_string(vr, nvr, value);
         return fmi3OK;
@@ -638,6 +746,14 @@ fmi3Status fmi3GetBinary(fmi3Instance c,
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
+    for (size_t i = 0; i < nvr; ++i) {
+        auto *var = component->slave->get_variable(vr[i]);
+        if (var && !isClockActiveForVariable(*component->slave, *var, component->state)) {
+            component->logger->log(fmiError, "Clocked variable with vr " + std::to_string(vr[i]) +
+                                                     " accessed when its Clock is not active.");
+            return fmi3Error;
+        }
+    }
     try {
         component->slave->get_binary(vr, nvr, valueSizes, values);
         return fmi3OK;
@@ -679,6 +795,14 @@ fmi3Status fmi3SetBinary(fmi3Instance c,
         component->logger->log(fmiError, "fmi3SetBinary: nValues must equal nvr");
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
+    }
+    for (size_t i = 0; i < nvr; ++i) {
+        auto *var = component->slave->get_variable(vr[i]);
+        if (var && !isClockActiveForVariable(*component->slave, *var, component->state)) {
+            component->logger->log(fmiError, "Clocked variable with vr " + std::to_string(vr[i]) +
+                                                     " accessed when its Clock is not active.");
+            return fmi3Error;
+        }
     }
     try {
         component->slave->set_binary(vr, nvr, valueSizes, values);
@@ -895,15 +1019,66 @@ fmi3Status fmi3GetClock(fmi3Instance instance,
                         const fmi3ValueReference valueReferences[],
                         size_t nValueReferences,
                         fmi3Clock values[]) {
-    return fmi3Error;
+    if (!instance) return fmi3Error;
+    const auto component = static_cast<Fmi3Component *>(instance);
+    if (component->state == Fmi3Component::State::Invalid) return fmi3Fatal;
+    if (component->state != Fmi3Component::State::EventMode) {
+        component->logger->log(fmiError, "fmi3GetClock: Invalid state. Expected EventMode.");
+        return fmi3Error;
+    }
+    if (nValueReferences > 0 && (!valueReferences || !values)) {
+        component->logger->log(fmiError, "fmi3GetClock: Null pointer passed.");
+        return fmi3Error;
+    }
+    try {
+        component->slave->get_clock(valueReferences, nValueReferences, values);
+        // Reset output clocks to inactive after query (one-shot)
+        for (size_t i = 0; i < nValueReferences; ++i) {
+            auto *var = component->slave->get_variable(valueReferences[i]);
+            if (var && var->causality() == fmu4cpp::causality_t::OUTPUT) {
+                auto *cv = const_cast<fmu4cpp::ClockVariable *>(dynamic_cast<const fmu4cpp::ClockVariable *>(var));
+                if (cv && values[i]) {
+                    cv->force_set(false);
+                }
+            }
+        }
+        return fmi3OK;
+    } catch (const fmu4cpp::fatal_error &ex) {
+        component->logger->log(fmiFatal, ex.what());
+        component->state = Fmi3Component::State::Invalid;
+        return fmi3Fatal;
+    } catch (const std::exception &ex) {
+        component->logger->log(fmiError, ex.what());
+        return fmi3Error;
+    }
 }
 
 fmi3Status fmi3SetClock(fmi3Instance instance,
                         const fmi3ValueReference valueReferences[],
                         size_t nValueReferences,
                         const fmi3Clock values[]) {
-
-    return fmi3Error;
+    if (!instance) return fmi3Error;
+    const auto component = static_cast<Fmi3Component *>(instance);
+    if (component->state == Fmi3Component::State::Invalid) return fmi3Fatal;
+    if (component->state != Fmi3Component::State::EventMode) {
+        component->logger->log(fmiError, "fmi3SetClock: Invalid state. Expected EventMode.");
+        return fmi3Error;
+    }
+    if (nValueReferences > 0 && (!valueReferences || !values)) {
+        component->logger->log(fmiError, "fmi3SetClock: Null pointer passed.");
+        return fmi3Error;
+    }
+    try {
+        component->slave->set_clock(valueReferences, nValueReferences, values);
+        return fmi3OK;
+    } catch (const fmu4cpp::fatal_error &ex) {
+        component->logger->log(fmiFatal, ex.what());
+        component->state = Fmi3Component::State::Invalid;
+        return fmi3Fatal;
+    } catch (const std::exception &ex) {
+        component->logger->log(fmiError, ex.what());
+        return fmi3Error;
+    }
 }
 
 fmi3Status fmi3GetNumberOfVariableDependencies(fmi3Instance instance,
@@ -951,8 +1126,44 @@ fmi3Status fmi3GetIntervalDecimal(fmi3Instance instance,
                                   size_t nValueReferences,
                                   fmi3Float64 intervals[],
                                   fmi3IntervalQualifier qualifiers[]) {
-
-    return fmi3Error;
+    if (!instance) return fmi3Error;
+    const auto component = static_cast<Fmi3Component *>(instance);
+    if (component->state == Fmi3Component::State::Invalid) return fmi3Fatal;
+    if (component->state != Fmi3Component::State::EventMode &&
+        component->state != Fmi3Component::State::StepMode &&
+        component->state != Fmi3Component::State::InitializationMode) {
+        component->logger->log(fmiError, "fmi3GetIntervalDecimal: Invalid state.");
+        return fmi3Error;
+    }
+    if (nValueReferences > 0 && (!valueReferences || !intervals || !qualifiers)) {
+        component->logger->log(fmiError, "fmi3GetIntervalDecimal: Null pointer passed.");
+        return fmi3Error;
+    }
+    try {
+        std::vector<fmu4cpp::interval_qualifier_t> internalQualifiers(nValueReferences);
+        component->slave->get_interval_decimal(valueReferences, nValueReferences, intervals, internalQualifiers.data());
+        for (size_t i = 0; i < nValueReferences; ++i) {
+            switch (internalQualifiers[i]) {
+                case fmu4cpp::interval_qualifier_t::INTERVAL_NOT_YET_KNOWN:
+                    qualifiers[i] = fmi3IntervalNotYetKnown;
+                    break;
+                case fmu4cpp::interval_qualifier_t::INTERVAL_UNCHANGED:
+                    qualifiers[i] = fmi3IntervalUnchanged;
+                    break;
+                case fmu4cpp::interval_qualifier_t::INTERVAL_CHANGED:
+                    qualifiers[i] = fmi3IntervalChanged;
+                    break;
+            }
+        }
+        return fmi3OK;
+    } catch (const fmu4cpp::fatal_error &ex) {
+        component->logger->log(fmiFatal, ex.what());
+        component->state = Fmi3Component::State::Invalid;
+        return fmi3Fatal;
+    } catch (const std::exception &ex) {
+        component->logger->log(fmiError, ex.what());
+        return fmi3Error;
+    }
 }
 
 fmi3Status fmi3GetIntervalFraction(fmi3Instance instance,
@@ -969,8 +1180,28 @@ fmi3Status fmi3GetShiftDecimal(fmi3Instance instance,
                                const fmi3ValueReference valueReferences[],
                                size_t nValueReferences,
                                fmi3Float64 shifts[]) {
-
-    return fmi3Error;
+    if (!instance) return fmi3Error;
+    const auto component = static_cast<Fmi3Component *>(instance);
+    if (component->state == Fmi3Component::State::Invalid) return fmi3Fatal;
+    if (nValueReferences > 0 && (!valueReferences || !shifts)) {
+        component->logger->log(fmiError, "fmi3GetShiftDecimal: Null pointer passed.");
+        return fmi3Error;
+    }
+    try {
+        for (size_t i = 0; i < nValueReferences; ++i) {
+            auto *v = component->slave->get_variable(valueReferences[i]);
+            if (!v || v->type() != fmu4cpp::data_type::CLOCK) {
+                component->logger->log(fmiError, "fmi3GetShiftDecimal: ValueReference is not a Clock.");
+                return fmi3Error;
+            }
+            auto *cv = dynamic_cast<const fmu4cpp::ClockVariable *>(v);
+            shifts[i] = cv->getShiftDecimal().value_or(0.0);
+        }
+        return fmi3OK;
+    } catch (const std::exception &ex) {
+        component->logger->log(fmiError, ex.what());
+        return fmi3Error;
+    }
 }
 
 fmi3Status fmi3GetShiftFraction(fmi3Instance instance,
@@ -986,8 +1217,29 @@ fmi3Status fmi3SetIntervalDecimal(fmi3Instance instance,
                                   const fmi3ValueReference valueReferences[],
                                   size_t nValueReferences,
                                   const fmi3Float64 intervals[]) {
-
-    return fmi3Error;
+    if (!instance) return fmi3Error;
+    const auto component = static_cast<Fmi3Component *>(instance);
+    if (component->state == Fmi3Component::State::Invalid) return fmi3Fatal;
+    if (component->state != Fmi3Component::State::EventMode &&
+        component->state != Fmi3Component::State::InitializationMode) {
+        component->logger->log(fmiError, "fmi3SetIntervalDecimal: Invalid state.");
+        return fmi3Error;
+    }
+    if (nValueReferences > 0 && (!valueReferences || !intervals)) {
+        component->logger->log(fmiError, "fmi3SetIntervalDecimal: Null pointer passed.");
+        return fmi3Error;
+    }
+    try {
+        component->slave->set_interval_decimal(valueReferences, nValueReferences, intervals);
+        return fmi3OK;
+    } catch (const fmu4cpp::fatal_error &ex) {
+        component->logger->log(fmiFatal, ex.what());
+        component->state = Fmi3Component::State::Invalid;
+        return fmi3Fatal;
+    } catch (const std::exception &ex) {
+        component->logger->log(fmiError, ex.what());
+        return fmi3Error;
+    }
 }
 
 fmi3Status fmi3SetIntervalFraction(fmi3Instance instance,
@@ -1028,8 +1280,58 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
                                     fmi3Boolean *valuesOfContinuousStatesChanged,
                                     fmi3Boolean *nextEventTimeDefined,
                                     fmi3Float64 *nextEventTime) {
+    if (!instance) return fmi3Error;
+    const auto component = static_cast<Fmi3Component *>(instance);
+    if (component->state == Fmi3Component::State::Invalid) return fmi3Fatal;
+    if (component->state != Fmi3Component::State::EventMode) {
+        component->logger->log(fmiError, "fmi3UpdateDiscreteStates: Invalid state. Expected EventMode.");
+        return fmi3Error;
+    }
+    if (!discreteStatesNeedUpdate || !terminateSimulation ||
+        !nominalsOfContinuousStatesChanged || !valuesOfContinuousStatesChanged ||
+        !nextEventTimeDefined || !nextEventTime) {
+        component->logger->log(fmiError, "fmi3UpdateDiscreteStates: Null pointer passed for output arguments.");
+        return fmi3Error;
+    }
+    try {
+        fmu4cpp::discrete_states_info info{};
+        component->slave->update_discrete_states(info);
 
-    return fmi3Error;
+        *discreteStatesNeedUpdate = info.discreteStatesNeedUpdate ? fmi3True : fmi3False;
+        *terminateSimulation = info.terminateSimulation ? fmi3True : fmi3False;
+        *nominalsOfContinuousStatesChanged = fmi3False;
+        *valuesOfContinuousStatesChanged = fmi3False;
+        *nextEventTimeDefined = info.nextEventTimeDefined ? fmi3True : fmi3False;
+        *nextEventTime = info.nextEventTime;
+
+        component->discreteStatesNeedUpdate = info.discreteStatesNeedUpdate;
+
+        // Active clocks must be deactivated internally during this call (FMI 3.0 Section 2.4.6)
+        for (const auto vr: component->slave->get_value_refs()) {
+            auto *v = component->slave->get_variable(vr);
+            if (v && v->type() == fmu4cpp::data_type::CLOCK) {
+                auto *cv = const_cast<fmu4cpp::ClockVariable *>(dynamic_cast<const fmu4cpp::ClockVariable *>(v));
+                if (cv && cv->causality() == fmu4cpp::causality_t::INPUT && cv->get()) {
+                    cv->force_set(false);
+                    component->slave->on_clock_deactivated(vr);
+                }
+            }
+        }
+
+        if (info.terminateSimulation) {
+            component->state = Fmi3Component::State::Terminated;
+        }
+
+        return fmi3OK;
+    } catch (const fmu4cpp::fatal_error &ex) {
+        component->logger->log(fmiFatal, ex.what());
+        component->state = Fmi3Component::State::Invalid;
+        return fmi3Fatal;
+    } catch (const std::exception &ex) {
+        component->logger->log(fmiError, ex.what());
+        component->state = Fmi3Component::State::Terminated;
+        return fmi3Error;
+    }
 }
 
 fmi3Status fmi3EnterContinuousTimeMode(fmi3Instance instance) {
@@ -1093,8 +1395,28 @@ fmi3Status fmi3GetNumberOfContinuousStates(fmi3Instance instance,
 fmi3Status fmi3EnterStepMode(fmi3Instance instance) {
     if (!instance) return fmi3Error;
     const auto component = static_cast<Fmi3Component *>(instance);
-    component->logger->log(fmiError, "fmi3EnterStepMode is not supported");
-    return fmi3Error;
+    if (component->state == Fmi3Component::State::Invalid) return fmi3Fatal;
+    if (component->state != Fmi3Component::State::EventMode) {
+        component->logger->log(fmiError, "fmi3EnterStepMode: Invalid state. Expected EventMode.");
+        return fmi3Error;
+    }
+    if (component->discreteStatesNeedUpdate) {
+        component->logger->log(fmiError, "fmi3EnterStepMode: discreteStatesNeedUpdate is true. Must update discrete states until false.");
+        return fmi3Error;
+    }
+    try {
+        component->slave->enter_step_mode();
+        component->state = Fmi3Component::State::StepMode;
+        return fmi3OK;
+    } catch (const fmu4cpp::fatal_error &ex) {
+        component->logger->log(fmiFatal, ex.what());
+        component->state = Fmi3Component::State::Invalid;
+        return fmi3Fatal;
+    } catch (const std::exception &ex) {
+        component->logger->log(fmiError, ex.what());
+        component->state = Fmi3Component::State::Terminated;
+        return fmi3Error;
+    }
 }
 
 fmi3Status fmi3ActivateModelPartition(fmi3Instance instance,
