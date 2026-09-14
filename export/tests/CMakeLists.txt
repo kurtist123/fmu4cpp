@@ -60,6 +60,58 @@ generateFMU(BouncingBall
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-add_test(NAME validate_fmus
-        COMMAND ${Python3_EXECUTABLE} "${_fmu4cpp_root}/scripts/validate_fmu.py" --dir "${CMAKE_BINARY_DIR}/models" --require-fmus -v
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} -c "import lxml"
+    RESULT_VARIABLE _lxml_check
+    OUTPUT_QUIET
+    ERROR_QUIET
 )
+if (NOT _lxml_check EQUAL 0)
+    find_program(_SYSTEM_PYTHON3 NAMES python3 PATHS /usr/bin NO_DEFAULT_PATH)
+    if (_SYSTEM_PYTHON3)
+        execute_process(
+            COMMAND ${_SYSTEM_PYTHON3} -c "import lxml"
+            RESULT_VARIABLE _sys_lxml_check
+            OUTPUT_QUIET
+            ERROR_QUIET
+        )
+        if (_sys_lxml_check EQUAL 0)
+            set(Python3_EXECUTABLE "${_SYSTEM_PYTHON3}" CACHE FILEPATH "Path to Python3 executable" FORCE)
+            set(_lxml_check 0)
+        endif()
+    endif()
+endif()
+
+add_test(NAME validate_fmus
+        COMMAND ${Python3_EXECUTABLE} "${_fmu4cpp_root}/scripts/validate_fmu.py"
+        --dir "${CMAKE_BINARY_DIR}/models"
+        --require-fmus
+        --strict
+        --check-symbols
+        --expect-models Identity BouncingBall
+        --expect-generations fmi2 fmi3
+        -v
+)
+
+if (_lxml_check EQUAL 0)
+    add_test(NAME validate_fmus_lxml
+            COMMAND ${Python3_EXECUTABLE} "${_fmu4cpp_root}/scripts/validate_fmu.py"
+            --dir "${CMAKE_BINARY_DIR}/models"
+            --require-fmus
+            --backend lxml
+            --strict
+            --check-symbols
+            --expect-models Identity BouncingBall
+            --expect-generations fmi2 fmi3
+            -v
+    )
+endif()
+
+add_test(NAME test_validator
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/test_validate_fmu.py"
+        --fmu4cpp-root "${_fmu4cpp_root}"
+        --build-dir "${CMAKE_BINARY_DIR}"
+)
+
+
+

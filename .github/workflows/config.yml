@@ -25,14 +25,14 @@ jobs:
 
       - name: "Validate FMUs"
         run: |
-          python3 scripts/validate_fmu.py --dir build/models --require-fmus -v
+          python3 scripts/validate_fmu.py --dir build/models --require-fmus --strict --check-symbols --expect-models Identity BouncingBall --expect-generations fmi2 fmi3 -v
 
       - name: "Download fmusim"
         run: |
           version=0.0.39
           zip=Reference-FMUs-$version.zip
           url="https://github.com/modelica/Reference-FMUs/releases/download/v$version/$zip"
-          
+
           wget -q "$url" -O "$zip"
           mkdir -p "Reference-FMUs"
           unzip -q "$zip" -d "Reference-FMUs"
@@ -49,7 +49,7 @@ jobs:
             echo "Checking FMU: $f ($mb)"
             ./fmusim "$f"
           done < <(find ${{ github.workspace }}/build/models -type f -name '*.fmu' -print0 2>/dev/null || true)
-      
+
           if [ "$found" -eq 0 ]; then
             echo "Error: No FMUs found under build/models"
             exit 1
@@ -58,7 +58,6 @@ jobs:
       - name: "Test"
         run: |
           ctest --no-tests=error --test-dir build/export/tests --output-on-failure
-
 
   build-on-windows:
     runs-on: ${{ matrix.os }}
@@ -81,7 +80,7 @@ jobs:
 
       - name: "Validate FMUs"
         run: |
-          python scripts/validate_fmu.py --dir "${{ github.workspace }}/build/models" --require-fmus -v
+          python scripts/validate_fmu.py --dir "${{ github.workspace }}/build/models" --require-fmus --strict --check-symbols --expect-models Identity BouncingBall --expect-generations fmi2 fmi3 -v
 
       - name: "Download fmusim"
         shell: pwsh
@@ -89,7 +88,7 @@ jobs:
           $version = "0.0.39"
           $zip = "Reference-FMUs-$version.zip"
           $url = "https://github.com/modelica/Reference-FMUs/releases/download/v$version/$zip"
-          
+
           Invoke-WebRequest -Uri $url -OutFile $zip
           Expand-Archive -Path $zip -DestinationPath Reference-FMUs -Force
 
