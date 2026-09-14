@@ -87,6 +87,7 @@ namespace fmu4cpp {
         std::optional<double> intervalDecimal{std::nullopt};
         std::optional<double> shiftDecimal{std::nullopt};
         interval_qualifier_t intervalQualifier{interval_qualifier_t::INTERVAL_UNCHANGED};
+        std::optional<double> nextTickTime{std::nullopt};
     };
 
     struct discrete_states_info {
@@ -174,9 +175,14 @@ namespace fmu4cpp {
         virtual void on_clock_deactivated(unsigned int vr) {}
         virtual void on_interval_changed(unsigned int vr, double interval) {}
 
+        void deactivate_active_clocks();
+        [[nodiscard]] bool is_clock_active(unsigned int vr) const;
+        void activate_clock(unsigned int vr);
+        [[nodiscard]] std::optional<double> get_next_event_time() const;
+
         void get_clock(const unsigned int vr[], size_t nvr, bool value[]) const;
         void set_clock(const unsigned int vr[], size_t nvr, const bool value[]);
-        void get_interval_decimal(const unsigned int vr[], size_t nvr, double intervals[], interval_qualifier_t qualifiers[]) const;
+        void get_interval_decimal(const unsigned int vr[], size_t nvr, double intervals[], interval_qualifier_t qualifiers[]);
         void set_interval_decimal(const unsigned int vr[], size_t nvr, const double intervals[]);
 
         void get_integer(const unsigned int vr[], size_t nvr, int value[]) const;

@@ -78,7 +78,14 @@ void fmu_base::enter_initialisation_mode(double start, std::optional<double> sto
 }
 
 void fmu_base::enter_initialisation_mode() {}
-void fmu_base::exit_initialisation_mode() {}
+void fmu_base::exit_initialisation_mode() {
+    for (auto &v: variables_) {
+        if (v->type() == data_type::CLOCK) {
+            auto *cv = static_cast<ClockVariable *>(v.get());
+            cv->compute_initial_tick_time(time_);
+        }
+    }
+}
 
 bool fmu_base::step(double currentTime, double dt) {
 
@@ -94,6 +101,20 @@ bool fmu_base::step(double currentTime, double dt) {
 
     if (do_step(dt)) {
         time_ += dt;
+
+        for (auto &v: variables_) {
+            if (v->type() == data_type::CLOCK) {
+                auto *cv = static_cast<ClockVariable *>(v.get());
+                if (cv->is_time_based() && cv->next_tick_time().has_value()) {
+                    double tick = *cv->next_tick_time();
+                    if (time_ >= tick - TIME_TOLERANCE) {
+                        cv->force_set(true);
+                        pending_events_ = true;
+                        cv->advance_tick();
+                    }
+                }
+            }
+        }
 
         return true;
     }
@@ -117,6 +138,7 @@ void fmu_base::reset() {
             auto *cv = dynamic_cast<ClockVariable *>(v.get());
             if (cv) {
                 cv->reset();
+                cv->compute_initial_tick_time(time_);
             }
         }
     }
@@ -152,6 +174,55 @@ void fmu_base::get_boolean(const unsigned int vr[], size_t nvr, int value[]) con
 
 void fmu_base::get_boolean(const unsigned int vr[], size_t nvr, bool value[]) const {
     get_values<bool>(vr, nvr, value, nvr);
+}
+
+void fmu_base::deactivate_active_clocks() {
+    for (auto &v: variables_) {
+        if (v->type() == data_type::CLOCK) {
+            auto *cv = static_cast<ClockVariable *>(v.get());
+            if (cv->get()) {
+                cv->force_set(false);
+                if (cv->causality() == causality_t::INPUT) {
+                    on_clock_deactivated(cv->value_reference());
+                }
+            }
+        }
+    }
+}
+
+bool fmu_base::is_clock_active(unsigned int vr) const {
+    auto it = vrToVariable_.find(vr);
+    if (it == vrToVariable_.end() || it->second->type() != data_type::CLOCK) {
+        return false;
+    }
+    return static_cast<const ClockVariable *>(it->second)->get();
+}
+
+void fmu_base::activate_clock(unsigned int vr) {
+    auto it = vrToVariable_.find(vr);
+    if (it != vrToVariable_.end() && it->second->type() == data_type::CLOCK) {
+        auto *cv = static_cast<ClockVariable *>(it->second);
+        cv->force_set(true);
+        if (cv->causality() == causality_t::INPUT) {
+            on_clock_activated(vr);
+        }
+    }
+}
+
+std::optional<double> fmu_base::get_next_event_time() const {
+    std::optional<double> earliest = std::nullopt;
+    for (const auto &v: variables_) {
+        if (v->type() == data_type::CLOCK) {
+            auto *cv = static_cast<const ClockVariable *>(v.get());
+            if (cv->is_time_based() && cv->next_tick_time().has_value()) {
+                double t = *cv->next_tick_time();
+                if (!earliest.has_value() || t < *earliest) {
+                    earliest = t;
+                }
+            }
+        }
+    }
+    return earliest;
 }
 
 void fmu_base::get_clock(const unsigned int vr[], size_t nvr, bool value[]) const {
@@ -191,20 +262,20 @@ void fmu_base::set_clock(const unsigned int vr[], size_t nvr, const bool value[]
     }
 }
 
-void fmu_base::get_interval_decimal(const unsigned int vr[], size_t nvr, double intervals[], interval_qualifier_t qualifiers[]) const {
+void fmu_base::get_interval_decimal(const unsigned int vr[], size_t nvr, double intervals[], interval_qualifier_t qualifiers[]) {
     for (size_t i = 0; i < nvr; ++i) {
         auto it = vrToVariable_.find(vr[i]);
         if (it == vrToVariable_.end()) {
             throw std::out_of_range("Invalid valueReference: " + std::to_string(vr[i]));
         }
-        auto *clockVar = dynamic_cast<const ClockVariable *>(it->second);
+        auto *clockVar = dynamic_cast<ClockVariable *>(it->second);
         if (!clockVar) {
             throw std::invalid_argument("Variable with valueReference " + std::to_string(vr[i]) + " is not a Clock");
         }
         auto d = clockVar->getIntervalDecimal();
         intervals[i] = d.value_or(0.0);
         qualifiers[i] = clockVar->getIntervalQualifier();
-        const_cast<ClockVariable *>(clockVar)->resetIntervalQualifier();
+        clockVar->resetIntervalQualifier();
     }
 }
 
@@ -219,6 +290,9 @@ void fmu_base::set_interval_decimal(const unsigned int vr[], size_t nvr, const d
             throw std::invalid_argument("Variable with valueReference " + std::to_string(vr[i]) + " is not a Clock");
         }
         clockVar->setIntervalDecimal(intervals[i]);
+        if (clockVar->is_time_based()) {
+            clockVar->compute_initial_tick_time(time_);
+        }
         on_interval_changed(vr[i], intervals[i]);
     }
 }
@@ -534,7 +608,8 @@ void *fmu_base::getFMUState() {
                                           cv->get(),
                                           cv->getIntervalDecimal(),
                                           cv->getShiftDecimal(),
-                                          cv->getIntervalQualifier()});
+                                          cv->getIntervalQualifier(),
+                                          cv->next_tick_time()});
         }
     }
 
@@ -562,6 +637,7 @@ void fmu_base::setFmuState(void *state) {
             cv->restoreIntervalDecimal(cs.intervalDecimal);
             cv->restoreShiftDecimal(cs.shiftDecimal);
             cv->setIntervalQualifier(cs.intervalQualifier);
+            cv->set_next_tick_time(cs.nextTickTime);
         }
     }
 

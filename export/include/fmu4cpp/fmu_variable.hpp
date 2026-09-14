@@ -600,6 +600,34 @@ namespace fmu4cpp {
         [[nodiscard]] bool canBeDeactivated() const { return canBeDeactivated_; }
         [[nodiscard]] interval_qualifier_t getIntervalQualifier() const { return intervalQualifier_; }
 
+        [[nodiscard]] bool is_time_based() const {
+            return intervalVariability_.has_value() &&
+                   *intervalVariability_ != interval_variability_t::TRIGGERED;
+        }
+
+        [[nodiscard]] std::optional<double> next_tick_time() const { return nextTickTime_; }
+        void set_next_tick_time(const std::optional<double> &nt) { nextTickTime_ = nt; }
+
+        void compute_initial_tick_time(double startTime) {
+            if (!is_time_based()) {
+                nextTickTime_ = std::nullopt;
+                return;
+            }
+            if (shiftDecimal_.has_value() && *shiftDecimal_ > 0.0) {
+                nextTickTime_ = startTime + *shiftDecimal_;
+            } else if (intervalDecimal_.has_value() && *intervalDecimal_ > 0.0) {
+                nextTickTime_ = startTime + *intervalDecimal_;
+            } else {
+                nextTickTime_ = std::nullopt;
+            }
+        }
+
+        void advance_tick() {
+            if (nextTickTime_.has_value() && intervalDecimal_.has_value() && *intervalDecimal_ > 0.0) {
+                *nextTickTime_ += *intervalDecimal_;
+            }
+        }
+
         ClockVariable &setIntervalVariability(interval_variability_t iv) {
             intervalVariability_ = iv;
             return *this;
@@ -637,6 +665,7 @@ namespace fmu4cpp {
             resetIntervalQualifier();
             intervalDecimal_ = initialIntervalDecimal_;
             shiftDecimal_ = initialShiftDecimal_;
+            nextTickTime_ = std::nullopt;
         }
         ClockVariable &setSupportsFraction(bool sf) {
             supportsFraction_ = sf;
@@ -669,6 +698,7 @@ namespace fmu4cpp {
         std::optional<double> shiftDecimal_;
         std::optional<double> initialIntervalDecimal_;
         std::optional<double> initialShiftDecimal_;
+        std::optional<double> nextTickTime_;
         bool supportsFraction_{false};
         std::optional<uint64_t> resolution_;
         std::optional<uint64_t> intervalCounter_;

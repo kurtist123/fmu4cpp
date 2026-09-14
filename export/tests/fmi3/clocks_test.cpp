@@ -1,5 +1,6 @@
 #include "fmi3/fmi3Functions.h"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <fmu4cpp/fmu_base.hpp>
 #include <iostream>
@@ -271,5 +272,129 @@ TEST_CASE("fmi3_clocks_fmu_state_rollback") {
     REQUIRE(fmi3FreeFMUState(c, &state1) == fmi3OK);
     CHECK(state1 == nullptr);
 
+    fmi3FreeInstance(c);
+}
+
+TEST_CASE("fmi3_periodic_clock_autonomous_scheduling") {
+    ClocksModel model({});
+    const auto guid = model.guid();
+
+    auto c = fmi3InstantiateCoSimulation(
+            fmu4cpp::model_identifier().c_str(),
+            guid.c_str(),
+            "",
+            false,
+            true,
+            true,// eventModeUsed = true
+            false,
+            nullptr,
+            0,
+            nullptr,
+            fmilogger,
+            nullptr);
+    REQUIRE(c != nullptr);
+
+    REQUIRE(fmi3EnterInitializationMode(c, false, 0.0, 0.0, false, 0.0) == fmi3OK);
+    REQUIRE(fmi3ExitInitializationMode(c) == fmi3OK);
+
+    // VR 3 is periodic clock with shift = 0.05. Set interval = 0.05.
+    fmi3ValueReference periodicVr = 3;
+    fmi3Float64 intervalVal = 0.05;
+    REQUIRE(fmi3SetIntervalDecimal(c, &periodicVr, 1, &intervalVal) == fmi3OK);
+
+    // Initial event iteration: fmi3UpdateDiscreteStates reports nextEventTime = 0.05
+    fmi3Boolean discreteStatesNeedUpdate = fmi3False;
+    fmi3Boolean terminateSimulation = fmi3False;
+    fmi3Boolean nominalsChanged = fmi3False;
+    fmi3Boolean valuesChanged = fmi3False;
+    fmi3Boolean nextEventTimeDefined = fmi3False;
+    fmi3Float64 nextEventTime = 0.0;
+    REQUIRE(fmi3UpdateDiscreteStates(
+                    c,
+                    &discreteStatesNeedUpdate,
+                    &terminateSimulation,
+                    &nominalsChanged,
+                    &valuesChanged,
+                    &nextEventTimeDefined,
+                    &nextEventTime) == fmi3OK);
+    CHECK(discreteStatesNeedUpdate == fmi3False);
+    CHECK(nextEventTimeDefined == fmi3True);
+    CHECK(nextEventTime == Catch::Approx(0.05));
+
+    // Enter step mode at t = 0.0
+    REQUIRE(fmi3EnterStepMode(c) == fmi3OK);
+
+    // Step 1: t = 0.0 to 0.02 (dt = 0.02). Next tick is at 0.05, so no tick.
+    fmi3Boolean eventHandlingNeeded = fmi3False;
+    terminateSimulation = fmi3False;
+    fmi3Boolean earlyReturn = fmi3False;
+    fmi3Float64 lastSuccessfulTime = 0.0;
+    REQUIRE(fmi3DoStep(c, 0.0, 0.02, fmi3False, &eventHandlingNeeded, &terminateSimulation, &earlyReturn, &lastSuccessfulTime) == fmi3OK);
+    CHECK(eventHandlingNeeded == fmi3False);
+    CHECK(lastSuccessfulTime == 0.02);
+
+    // Step 2: t = 0.02 to 0.05 (dt = 0.03). Reaches next tick (0.05), so clock fires and triggers pending event!
+    REQUIRE(fmi3DoStep(c, 0.02, 0.03, fmi3False, &eventHandlingNeeded, &terminateSimulation, &earlyReturn, &lastSuccessfulTime) == fmi3OK);
+    CHECK(eventHandlingNeeded == fmi3True);
+    CHECK(lastSuccessfulTime == 0.05);
+
+    // Enter Event Mode to process the clock tick
+    REQUIRE(fmi3EnterEventMode(c) == fmi3OK);
+
+    // Periodic clock is active
+    fmi3Clock periodicActive = fmi3False;
+    REQUIRE(fmi3GetClock(c, &periodicVr, 1, &periodicActive) == fmi3OK);
+    CHECK(periodicActive == fmi3True);
+
+    // Snapshot state while clock is active
+    fmi3FMUState snap = nullptr;
+    REQUIRE(fmi3GetFMUState(c, &snap) == fmi3OK);
+    REQUIRE(snap != nullptr);
+
+    // Calling fmi3UpdateDiscreteStates deactivates the clock and reports the next event time (0.10)
+    discreteStatesNeedUpdate = fmi3False;
+    nominalsChanged = fmi3False;
+    valuesChanged = fmi3False;
+    nextEventTimeDefined = fmi3False;
+    nextEventTime = 0.0;
+    REQUIRE(fmi3UpdateDiscreteStates(
+                    c,
+                    &discreteStatesNeedUpdate,
+                    &terminateSimulation,
+                    &nominalsChanged,
+                    &valuesChanged,
+                    &nextEventTimeDefined,
+                    &nextEventTime) == fmi3OK);
+
+    REQUIRE(fmi3GetClock(c, &periodicVr, 1, &periodicActive) == fmi3OK);
+    CHECK(periodicActive == fmi3False);
+    CHECK(nextEventTimeDefined == fmi3True);
+    CHECK(nextEventTime == Catch::Approx(0.10));
+
+    // Rollback to snap: clock should be active again
+    REQUIRE(fmi3SetFMUState(c, snap) == fmi3OK);
+    REQUIRE(fmi3GetClock(c, &periodicVr, 1, &periodicActive) == fmi3OK);
+    CHECK(periodicActive == fmi3True);
+
+    // Deactivate via updateDiscreteStates again
+    REQUIRE(fmi3UpdateDiscreteStates(
+                    c,
+                    &discreteStatesNeedUpdate,
+                    &terminateSimulation,
+                    &nominalsChanged,
+                    &valuesChanged,
+                    &nextEventTimeDefined,
+                    &nextEventTime) == fmi3OK);
+    CHECK(nextEventTimeDefined == fmi3True);
+    CHECK(nextEventTime == Catch::Approx(0.10));
+
+    // Return to Step Mode and step to 0.10
+    REQUIRE(fmi3EnterStepMode(c) == fmi3OK);
+    REQUIRE(fmi3DoStep(c, 0.05, 0.05, fmi3False, &eventHandlingNeeded, &terminateSimulation, &earlyReturn, &lastSuccessfulTime) == fmi3OK);
+    CHECK(eventHandlingNeeded == fmi3True);
+    CHECK(lastSuccessfulTime == 0.10);
+
+    REQUIRE(fmi3FreeFMUState(c, &snap) == fmi3OK);
+    REQUIRE(fmi3Terminate(c) == fmi3OK);
     fmi3FreeInstance(c);
 }

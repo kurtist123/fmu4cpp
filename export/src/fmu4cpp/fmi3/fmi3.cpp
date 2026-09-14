@@ -109,12 +109,8 @@ namespace {
             return false;
         }
         for (auto clockVr: clocks) {
-            auto *clockVar = slave.get_variable(clockVr);
-            if (clockVar && clockVar->type() == fmu4cpp::data_type::CLOCK) {
-                auto *cv = dynamic_cast<const fmu4cpp::ClockVariable *>(clockVar);
-                if (cv && cv->get()) {
-                    return true;
-                }
+            if (slave.is_clock_active(clockVr)) {
+                return true;
             }
         }
         return false;
@@ -1321,6 +1317,14 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
             component->slave->set_has_pending_events(false);
         }
 
+        if (!info.nextEventTimeDefined) {
+            auto nextEv = component->slave->get_next_event_time();
+            if (nextEv) {
+                info.nextEventTimeDefined = true;
+                info.nextEventTime = *nextEv;
+            }
+        }
+
         *discreteStatesNeedUpdate = info.discreteStatesNeedUpdate ? fmi3True : fmi3False;
         *terminateSimulation = info.terminateSimulation ? fmi3True : fmi3False;
         *nominalsOfContinuousStatesChanged = fmi3False;
@@ -1331,18 +1335,7 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
         component->discreteStatesNeedUpdate = info.discreteStatesNeedUpdate;
 
         // Active clocks must be deactivated internally during this call (FMI 3.0 Section 2.4.6)
-        for (const auto vr: component->slave->get_value_refs()) {
-            auto *v = component->slave->get_variable(vr);
-            if (v && v->type() == fmu4cpp::data_type::CLOCK) {
-                auto *cv = const_cast<fmu4cpp::ClockVariable *>(dynamic_cast<const fmu4cpp::ClockVariable *>(v));
-                if (cv && cv->get()) {
-                    cv->force_set(false);
-                    if (cv->causality() == fmu4cpp::causality_t::INPUT) {
-                        component->slave->on_clock_deactivated(vr);
-                    }
-                }
-            }
-        }
+        component->slave->deactivate_active_clocks();
 
         if (info.terminateSimulation) {
             component->state = Fmi3Component::State::Terminated;
