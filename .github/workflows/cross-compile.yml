@@ -1,4 +1,3 @@
-
 name: Cross-compile
 
 on: [push, workflow_dispatch]
@@ -8,10 +7,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-22.04, windows-2022 ]
+        os: [ubuntu-22.04, windows-2022]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure and build (Linux)
         if: startsWith(runner.os, 'Linux')
@@ -41,18 +40,16 @@ jobs:
           if ($rc -ge 8) { exit $rc }
 
       - name: Upload models
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: models-${{ matrix.os }}
           path: artifacts/models
-
 
   deploy:
     needs: build
     runs-on: ubuntu-22.04
 
     steps:
-
       - name: "Download models"
         uses: actions/download-artifact@v4
         with:
@@ -69,7 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          
+
           for dir in models/fmi*/*; do
             if [ -d "$dir" ]; then
               zip_path="$dir.fmu"
@@ -81,7 +78,7 @@ jobs:
           done
 
       - name: "Upload merged models"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: models-merged
           path: models
