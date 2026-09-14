@@ -7,17 +7,23 @@ using namespace fmu4cpp;
 
 class ClocksModel : public fmu_base {
 public:
+    struct State {
+        double clockedVar{42.0};
+        int clock_activated_count{0};
+        int clock_deactivated_count{0};
+    };
+
     FMU4CPP_CTOR(ClocksModel) {
         register_clock("clockIn", &clockIn_).setCausality(causality_t::INPUT);
         register_clock("clockOut", &clockOut_).setCausality(causality_t::OUTPUT);
         register_clock("clockPeriodic", &clockPeriodic_)
                 .setIntervalVariability(interval_variability_t::TUNABLE)
                 .setShiftDecimal(0.05);
-        register_real("clockedVar", &clockedVar_)
+        register_real("clockedVar", &state_.clockedVar)
                 .setCausality(causality_t::INPUT)
                 .setVariability(variability_t::DISCRETE)
                 .setClocks({1});
-
+        register_state(&ClocksModel::state_);
         ClocksModel::reset();
     }
 
@@ -30,14 +36,14 @@ public:
         clockIn_ = false;
         clockOut_ = false;
         clockPeriodic_ = false;
-        clockedVar_ = 42.0;
-        clock_activated_count_ = 0;
-        clock_deactivated_count_ = 0;
+        state_.clockedVar = 42.0;
+        state_.clock_activated_count = 0;
+        state_.clock_deactivated_count = 0;
     }
 
     void on_clock_activated(unsigned int vr) override {
         if (vr == 1) {
-            clock_activated_count_++;
+            state_.clock_activated_count++;
             // When clockIn activates, trigger clockOut as an event response
             clockOut_ = true;
         }
@@ -45,7 +51,7 @@ public:
 
     void on_clock_deactivated(unsigned int vr) override {
         if (vr == 1) {
-            clock_deactivated_count_++;
+            state_.clock_deactivated_count++;
         }
     }
 
@@ -61,9 +67,7 @@ public:
     bool clockIn_{false};
     bool clockOut_{false};
     bool clockPeriodic_{false};
-    double clockedVar_{42.0};
-    int clock_activated_count_{0};
-    int clock_deactivated_count_{0};
+    State state_{};
 };
 
 model_info fmu4cpp::get_model_info() {
@@ -72,6 +76,8 @@ model_info fmu4cpp::get_model_info() {
     info.description = "A model demonstrating FMI 3 clocks and event mode";
     info.defaultExperiment = {0.0, 10.0};
     info.hasEventMode = true;
+    info.canGetAndSetFMUstate = true;
+    info.canSerializeFMUstate = true;
     return info;
 }
 
