@@ -4,88 +4,20 @@
 #include <fmu4cpp/fmu_base.hpp>
 #include <iostream>
 
+#include "ClocksModel.hpp"
+
 namespace {
 
-void fmilogger(fmi3InstanceEnvironment, fmi3Status status, fmi3String /*category*/, fmi3String message) {
-    std::cout << status << ": " << message << std::endl;
-}
-
-class ClocksModel : public fmu4cpp::fmu_base {
-public:
-    FMU4CPP_CTOR(ClocksModel) {
-        // VR 0: time (from fmu_base)
-        // VR 1: clockIn (Input clock)
-        register_clock("clockIn", &clockIn_).setCausality(fmu4cpp::causality_t::INPUT);
-        // VR 2: clockOut (Output clock)
-        register_clock("clockOut", &clockOut_).setCausality(fmu4cpp::causality_t::OUTPUT);
-        // VR 3: clockPeriodic (Periodic clock with shift and interval)
-        register_clock("clockPeriodic", &clockPeriodic_)
-            .setIntervalVariability(fmu4cpp::interval_variability_t::TUNABLE)
-            .setShiftDecimal(0.05);
-        // VR 4: clockedVar (associated with clockIn, VR 1)
-        register_real("clockedVar", &clockedVar_).setCausality(fmu4cpp::causality_t::INPUT).setClocks({1});
-
-        ClocksModel::reset();
+    void fmilogger(fmi3InstanceEnvironment, fmi3Status status, fmi3String /*category*/, fmi3String message) {
+        std::cout << status << ": " << message << std::endl;
     }
 
-    bool do_step(double dt) override {
-        return true;
-    }
-
-    void reset() override {
-        fmu_base::reset();
-        clockIn_ = false;
-        clockOut_ = false;
-        clockPeriodic_ = false;
-        clockedVar_ = 42.0;
-        clock_activated_count_ = 0;
-        clock_deactivated_count_ = 0;
-    }
-
-    void on_clock_activated(unsigned int vr) override {
-        if (vr == 1) {
-            clock_activated_count_++;
-            // When clockIn activates, trigger clockOut as an event response
-            clockOut_ = true;
-        }
-    }
-
-    void on_clock_deactivated(unsigned int vr) override {
-        if (vr == 1) {
-            clock_deactivated_count_++;
-        }
-    }
-
-    void update_discrete_states(fmu4cpp::discrete_states_info &info) override {
-        info.discreteStatesNeedUpdate = false;
-        info.terminateSimulation = false;
-        info.nominalsOfContinuousStatesChanged = false;
-        info.valuesOfContinuousStatesChanged = false;
-        info.nextEventTimeDefined = false;
-        info.nextEventTime = 0.0;
-    }
-
-    bool clockIn_{false};
-    bool clockOut_{false};
-    bool clockPeriodic_{false};
-    double clockedVar_{42.0};
-    int clock_activated_count_{0};
-    int clock_deactivated_count_{0};
-};
-
-} // namespace
-
-fmu4cpp::model_info fmu4cpp::get_model_info() {
-    fmu4cpp::model_info info;
-    info.modelName = "ClocksModel";
-    return info;
-}
+}// namespace
 
 std::string fmu4cpp::model_identifier() {
     return "ClocksModel";
 }
 
-FMU4CPP_INSTANTIATE(ClocksModel);
 
 TEST_CASE("fmi3_clocks_and_intervals") {
     ClocksModel model({});
@@ -93,36 +25,34 @@ TEST_CASE("fmi3_clocks_and_intervals") {
 
     // 1. Instantiation with eventModeUsed = false must fail because model has clocks
     auto c_fail = fmi3InstantiateCoSimulation(
-        fmu4cpp::model_identifier().c_str(),
-        guid.c_str(),
-        "",
-        false,
-        true,
-        false, // eventModeUsed = false
-        false,
-        nullptr,
-        0,
-        nullptr,
-        fmilogger,
-        nullptr
-    );
+            fmu4cpp::model_identifier().c_str(),
+            guid.c_str(),
+            "",
+            false,
+            true,
+            false,// eventModeUsed = false
+            false,
+            nullptr,
+            0,
+            nullptr,
+            fmilogger,
+            nullptr);
     CHECK(c_fail == nullptr);
 
     // 2. Instantiation with eventModeUsed = true succeeds
     auto c = fmi3InstantiateCoSimulation(
-        fmu4cpp::model_identifier().c_str(),
-        guid.c_str(),
-        "",
-        false,
-        true,
-        true, // eventModeUsed = true
-        false,
-        nullptr,
-        0,
-        nullptr,
-        fmilogger,
-        nullptr
-    );
+            fmu4cpp::model_identifier().c_str(),
+            guid.c_str(),
+            "",
+            false,
+            true,
+            true,// eventModeUsed = true
+            false,
+            nullptr,
+            0,
+            nullptr,
+            fmilogger,
+            nullptr);
     REQUIRE(c != nullptr);
 
     // 3. Enter and exit initialization mode -> transitions to EventMode
@@ -190,14 +120,13 @@ TEST_CASE("fmi3_clocks_and_intervals") {
     fmi3Float64 nextEventTime = 0.0;
 
     REQUIRE(fmi3UpdateDiscreteStates(
-        c,
-        &discreteStatesNeedUpdate,
-        &terminateSimulation,
-        &nominalsChanged,
-        &valuesChanged,
-        &nextEventTimeDefined,
-        &nextEventTime
-    ) == fmi3OK);
+                    c,
+                    &discreteStatesNeedUpdate,
+                    &terminateSimulation,
+                    &nominalsChanged,
+                    &valuesChanged,
+                    &nextEventTimeDefined,
+                    &nextEventTime) == fmi3OK);
 
     // Since clockIn was deactivated, accessing clockedVar again fails
     REQUIRE(fmi3GetFloat64(c, &clockedVr, 1, &varVal, 1) == fmi3Error);

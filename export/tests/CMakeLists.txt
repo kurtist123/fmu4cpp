@@ -58,6 +58,14 @@ generateFMU(BouncingBall
         DESTINATION "${CMAKE_BINARY_DIR}/models"
 )
 
+generateFMU(ClocksModel
+        FMI_VERSIONS fmi3
+        SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/models/clocks_model.cpp"
+        INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/models"
+        DESTINATION "${CMAKE_BINARY_DIR}/models"
+)
+
+
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 add_test(NAME validate_fmus
