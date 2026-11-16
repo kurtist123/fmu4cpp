@@ -7,7 +7,7 @@ set(_fmu4cpp_root "${_fmu4cpp_root}" CACHE INTERNAL "")
 function(generateFMU modelIdentifier)
 
     set(options WITH_SOURCES)
-    set(oneValueArgs RESOURCE_FOLDER DOC_FOLDER DESTINATION)
+    set(oneValueArgs RESOURCE_FOLDER DOC_FOLDER DESTINATION TERMINALS_AND_ICONS_FOLDER EXTRA_FOLDER)
     set(multiValueArgs FMI_VERSIONS SOURCES INCLUDE_DIRS LINK_TARGETS COMPILE_DEFINITIONS)
     cmake_parse_arguments(FMU "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -27,6 +27,14 @@ function(generateFMU modelIdentifier)
 
     if (NOT FMU_DOC_FOLDER)
         set(FMU_DOC_FOLDER "")
+    endif ()
+
+    if (NOT FMU_TERMINALS_AND_ICONS_FOLDER)
+        set(FMU_TERMINALS_AND_ICONS_FOLDER "")
+    endif ()
+
+    if (NOT FMU_EXTRA_FOLDER)
+        set(FMU_EXTRA_FOLDER "")
     endif ()
 
     # Require at least one fmi version; default to fmi2 if none provided
@@ -58,7 +66,7 @@ function(generateFMU modelIdentifier)
                 @ONLY
         )
 
-        set(VERSIONS_DEFS "")
+        set(VERSION_DEFS "")
         if (fmiVersion STREQUAL "fmi2")
             list(APPEND VERSION_DEFS "FMI2")
             target_compile_definitions(fmu4cpp_fmi2 PUBLIC "FMI2")
@@ -103,6 +111,10 @@ function(generateFMU modelIdentifier)
         endif ()
 
 
+        set_target_properties(${versionTarget}
+                PROPERTIES
+                PREFIX ""
+        )
         if (WIN32)
             set_target_properties(${versionTarget}
                     PROPERTIES
@@ -111,7 +123,6 @@ function(generateFMU modelIdentifier)
         else ()
             set_target_properties(${versionTarget}
                     PROPERTIES
-                    PREFIX ""
                     LIBRARY_OUTPUT_DIRECTORY "${binaryOutputDir}"
             )
         endif ()
@@ -130,21 +141,33 @@ function(generateFMU modelIdentifier)
 endfunction()
 
 macro(_package_fmu)
-    set(TAR_INPUTS "${modelOutputDir}/binaries" "${modelOutputDir}/modelDescription.xml")
+    set(TAR_INPUTS "binaries" "modelDescription.xml")
     if (FMU_WITH_SOURCES AND fmiVersion STREQUAL "fmi3")
-        list(APPEND TAR_INPUTS "${modelOutputDir}/sources" "${modelOutputDir}/sources/buildDescription.xml")
+        list(APPEND TAR_INPUTS "sources")
     endif ()
 
     if (NOT FMU_DOC_FOLDER STREQUAL "")
         message("[generateFMU-${fmiVersion}] Using documentation folder=${FMU_DOC_FOLDER} for model '${modelIdentifier}'")
         file(COPY "${FMU_DOC_FOLDER}/" DESTINATION "${modelOutputDir}/documentation")
-        list(PREPEND TAR_INPUTS "documentation")
+        list(APPEND TAR_INPUTS "documentation")
     endif ()
 
     if (NOT FMU_RESOURCE_FOLDER STREQUAL "")
         message("[generateFMU-${fmiVersion}] Using resource folder=${FMU_RESOURCE_FOLDER} for model '${modelIdentifier}'")
         file(COPY "${FMU_RESOURCE_FOLDER}/" DESTINATION "${modelOutputDir}/resources")
-        list(PREPEND TAR_INPUTS "resources")
+        list(APPEND TAR_INPUTS "resources")
+    endif ()
+
+    if (NOT FMU_TERMINALS_AND_ICONS_FOLDER STREQUAL "")
+        message("[generateFMU-${fmiVersion}] Using terminalsAndIcons folder=${FMU_TERMINALS_AND_ICONS_FOLDER} for model '${modelIdentifier}'")
+        file(COPY "${FMU_TERMINALS_AND_ICONS_FOLDER}/" DESTINATION "${modelOutputDir}/terminalsAndIcons")
+        list(APPEND TAR_INPUTS "terminalsAndIcons")
+    endif ()
+
+    if (NOT FMU_EXTRA_FOLDER STREQUAL "")
+        message("[generateFMU-${fmiVersion}] Using extra folder=${FMU_EXTRA_FOLDER} for model '${modelIdentifier}'")
+        file(COPY "${FMU_EXTRA_FOLDER}/" DESTINATION "${modelOutputDir}/extra")
+        list(APPEND TAR_INPUTS "extra")
     endif ()
 
     if (FMU_DESTINATION)
@@ -152,12 +175,12 @@ macro(_package_fmu)
         file(MAKE_DIRECTORY "${FMU_DEST_DIR}")
         set(FMU_DESTINATION_ "${FMU_DEST_DIR}/${modelIdentifier}.fmu")
     else ()
-        set(FMU_DESTINATION_ "${modelIdentifier}.fmu")
+        set(FMU_DESTINATION_ "${modelOutputDir}/${modelIdentifier}.fmu")
     endif ()
     add_custom_command(TARGET ${versionTarget} POST_BUILD
             WORKING_DIRECTORY "${modelOutputDir}"
             COMMAND ${CMAKE_COMMAND} -E echo "[generateFMU-${fmiVersion}] Packaging ${modelIdentifier}.fmu in ${FMU_DESTINATION_}"
-            COMMAND ${CMAKE_COMMAND} -E tar c "${FMU_DESTINATION_}" --format=zip ${TAR_INPUTS}
+            COMMAND ${CMAKE_COMMAND} -E tar cf "${FMU_DESTINATION_}" --format=zip -- ${TAR_INPUTS}
     )
 endmacro()
 

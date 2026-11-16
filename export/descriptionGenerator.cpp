@@ -58,11 +58,14 @@ namespace {
     }
 }// namespace
 
-typedef void modelDescriptionTYPE(const char *);
+typedef bool modelDescriptionTYPE(const char *);
 
 int main(int argc, char **argv) {
 
-    if (argc != 2) return 1;
+    if (argc != 2) {
+        std::cerr << "[fmu4cpp modelDescription generator] Usage: descriptionGenerator <library_name>" << std::endl;
+        return 1;
+    }
 
     const std::string saveLocation = "../../modelDescription.xml";
     const std::string libName = argv[1];
@@ -76,9 +79,23 @@ int main(int argc, char **argv) {
     }
 
     const auto f = load_function<modelDescriptionTYPE *>(handle, "write_description");
-    f(saveLocation.c_str());
+    if (!f) {
+        std::cerr << "[fmu4cpp modelDescription generator] Symbol 'write_description' not found in '" << libName << "'! " << getLastError() << std::endl;
+        free_library(handle);
+        return 1;
+    }
+
+    std::error_code ec;
+    std::filesystem::remove(saveLocation, ec);
+
+    const bool ok = f(saveLocation.c_str());
 
     free_library(handle);
+
+    if (!ok || !std::filesystem::exists(saveLocation)) {
+        std::cerr << "[fmu4cpp modelDescription generator] Failed to generate '" << saveLocation << "' from '" << libName << "'!" << std::endl;
+        return 1;
+    }
 
     return 0;
 }

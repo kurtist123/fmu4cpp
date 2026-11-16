@@ -147,16 +147,25 @@ const char *fmi3GetVersion(void) {
     return "3.0";
 }
 
-FMI3_Export void write_description(const char *location) {
-    if (!location) return;
+FMI3_Export bool write_description(const char *location) {
+    if (!location) return false;
     try {
         const auto instance = fmu4cpp::createInstance({});
-        if (!instance) return;
+        if (!instance) return false;
         const auto xml = instance->make_description();
         std::ofstream of(location);
+        if (!of.is_open()) return false;
         of << xml;
+        if (!of.good()) return false;
         of.close();
-    } catch (...) {}
+        return true;
+    } catch (const std::exception &ex) {
+        std::cerr << "[fmu4cpp fmi3] Error generating description: " << ex.what() << std::endl;
+        return false;
+    } catch (...) {
+        std::cerr << "[fmu4cpp fmi3] Unknown error generating description" << std::endl;
+        return false;
+    }
 }
 
 fmi3Instance fmi3InstantiateModelExchange(fmi3String instanceName,

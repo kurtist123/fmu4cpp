@@ -49,14 +49,19 @@ std::string fmu_base::make_description() const {
     std::stringstream ss;
     ss << R"(<?xml version="1.0" encoding="UTF-8"?>)" << "\n"
        << "<fmiModelDescription fmiVersion=\"3.0\"\n"
-       << "\tmodelName=\"" << m.modelName << "\"\n"
+       << "\tmodelName=\"" << xml_escape(m.modelName) << "\"\n"
        << "\tinstantiationToken=\"" << guid() << "\"\n"
        << "\tgenerationTool=\"fmu4cpp v" << to_string(library_version()) << "\"\n"
        << "\tgenerationDateAndTime=\"" << now() << "\"\n"
-       << "\tdescription=\"" << m.description << "\"\n"
-       << "\tauthor=\"" << m.author << "\"\n"
-       << "\tvariableNamingConvention=\"" << m.variableNamingConvention << "\""
+       << "\tdescription=\"" << xml_escape(m.description) << "\"\n"
+       << "\tauthor=\"" << xml_escape(m.author) << "\"\n";
+    if (!m.version.empty()) {
+        ss << "\tversion=\"" << xml_escape(m.version) << "\"\n";
+    }
+    ss << "\tvariableNamingConvention=\"" << xml_escape(m.variableNamingConvention) << "\""
        << ">\n\n";
+
+    const bool hasEventMode = m.hasEventMode || !clocks_.empty();
 
     ss << std::boolalpha
        << "\t<CoSimulation\n"
@@ -64,8 +69,9 @@ std::string fmu_base::make_description() const {
        << "\t\tmodelIdentifier=\"" << model_identifier() << "\"\n"
        << "\t\tcanHandleVariableCommunicationStepSize=\"" << m.canHandleVariableCommunicationStepSize << "\"\n"
        << "\t\tcanBeInstantiatedOnlyOncePerProcess=\"" << m.canBeInstantiatedOnlyOncePerProcess << "\"\n"
-       << "\t\tcanGetAndSetFMUstate=\"" << m.canGetAndSetFMUstate << "\"\n"
-       << "\t\tcanSerializeFMUstate=\"" << m.canSerializeFMUstate << "\"\n"
+       << "\t\tcanGetAndSetFMUState=\"" << m.canGetAndSetFMUstate << "\"\n"
+       << "\t\tcanSerializeFMUState=\"" << m.canSerializeFMUstate << "\"\n"
+       << "\t\thasEventMode=\"" << hasEventMode << "\"\n"
        << "\t\tprovidesDirectionalDerivatives=\"false\"" << "\n"
        << "\t\tprovidesAdjointDerivatives=\"false\"" << "\n"
        << "\t\tprovidesPerElementDependencies=\"false\"" << "\n"
@@ -98,21 +104,32 @@ std::string fmu_base::make_description() const {
         const auto variability = v->variability();
         const auto initial = v->initial();
         const auto annotations = v->getAnnotations();
+        const bool isClock = (dynamic_cast<const ClockVariable *>(v) != nullptr);
+
         ss << "\t\t<!--"
            << "index=" << v->index() << "-->\n"
            << "\t\t<" << type(v) << " name=\""
-           << v->name() << "\" valueReference=\"" << v->value_reference() << "\""
+           << xml_escape(v->name()) << "\" valueReference=\"" << v->value_reference() << "\""
            << " causality=\"" << to_string(v->causality()) << "\"";
 
-        if (variability) {
-            ss << " variability=\"" << to_string(*variability) << "\"";
-        }
-        if (initial) {
-            ss << " initial=\"" << to_string(*initial) << "\"";
+        if (isClock) {
+            const auto clk = dynamic_cast<const ClockVariable *>(v);
+            ss << " intervalVariability=\"triggered\"";
+            ss << " canBeDeactivated=\"" << (clk->can_be_deactivated() ? "true" : "false") << "\"";
+        } else {
+            if (variability) {
+                ss << " variability=\"" << to_string(*variability) << "\"";
+            }
+            if (initial) {
+                ss << " initial=\"" << to_string(*initial) << "\"";
+            }
+            if (v->associated_clock().has_value()) {
+                ss << " clocks=\"" << *v->associated_clock() << "\"";
+            }
         }
 
         if (auto desc = v->getDescription(); !desc.empty()) {
-            ss << " description=\"" << desc << "\"";
+            ss << " description=\"" << xml_escape(desc) << "\"";
         }
 
         bool with_start = requires_start(*v);
@@ -143,25 +160,23 @@ std::string fmu_base::make_description() const {
 
             if (with_start) {
                 ss << ">\n";
-                ss << "\t\t\t<Dimension start=\"1\"/>\n";
-                ss << "\t\t\t<Start value=\"" << s->get() << "\"/>\n";
+                ss << "\t\t\t<Start value=\"" << xml_escape(s->get()) << "\"/>\n";
             }
         } else if (auto bin = dynamic_cast<const BinaryVariable *>(v)) {
+            ss << " mimeType=\"" << xml_escape(bin->mime_type()) << "\"";
+            if (bin->max_size()) {
+                ss << " maxSize=\"" << *bin->max_size() << "\"";
+            }
             if (with_start) {
                 ss << ">\n";
-                ss << "\t\t\t<Dimension start=\"1\"/>\n";
                 ss << "\t\t\t<Start value=\"" << hex_encode(bin->get()) << "\"/>\n";
             }
         }
 
-        if (with_start) {
-            if (dynamic_cast<const StringVariable *>(v)) {
-                ss << "\t\t</String>\n";
-            } else if (dynamic_cast<const BinaryVariable *>(v)) {
-                ss << "\t\t</Binary>\n";
-            } else {
-                ss << "/>\n";
-            }
+        if (with_start && dynamic_cast<const StringVariable *>(v)) {
+            ss << "\t\t</String>\n";
+        } else if (with_start && dynamic_cast<const BinaryVariable *>(v)) {
+            ss << "\t\t</Binary>\n";
         } else {
             ss << "/>\n";
         }
@@ -213,7 +228,7 @@ std::string fmu_base::make_description() const {
     });
     if (!initialUnknowns.empty()) {
         for (const auto &v: initialUnknowns) {
-            ss << "\t\t<InitialUnknown valueReference=\"" << v->index() - 1 << "\"";
+            ss << "\t\t<InitialUnknown valueReference=\"" << v->value_reference() << "\"";
             ss << "/>\n";
         }
     }

@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <fstream>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <string>
@@ -77,12 +78,25 @@ const char *fmi2GetVersion(void) {
     return "2.0";
 }
 
-FMI2_Export void write_description(const char *location, const char *modelIdentifier) {
-    const auto instance = fmu4cpp::createInstance({});
-    const auto xml = instance->make_description();
-    std::ofstream of(location);
-    of << xml;
-    of.close();
+FMI2_Export bool write_description(const char *location) {
+    if (!location) return false;
+    try {
+        const auto instance = fmu4cpp::createInstance({});
+        if (!instance) return false;
+        const auto xml = instance->make_description();
+        std::ofstream of(location);
+        if (!of.is_open()) return false;
+        of << xml;
+        if (!of.good()) return false;
+        of.close();
+        return true;
+    } catch (const std::exception &ex) {
+        std::cerr << "[fmu4cpp fmi2] Error generating description: " << ex.what() << std::endl;
+        return false;
+    } catch (...) {
+        std::cerr << "[fmu4cpp fmi2] Unknown error generating description" << std::endl;
+        return false;
+    }
 }
 
 fmi2Component fmi2Instantiate(fmi2String instanceName,

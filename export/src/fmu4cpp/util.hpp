@@ -73,6 +73,22 @@ namespace fmu4cpp {
         return indentedString;
     }
 
+    inline std::string xml_escape(const std::string &in) {
+        std::string out;
+        out.reserve(in.size() * 11 / 10);
+        for (char c : in) {
+            switch (c) {
+                case '&':  out.append("&amp;"); break;
+                case '<':  out.append("&lt;"); break;
+                case '>':  out.append("&gt;"); break;
+                case '\"': out.append("&quot;"); break;
+                case '\'': out.append("&apos;"); break;
+                default:   out.push_back(c); break;
+            }
+        }
+        return out;
+    }
+
 }// namespace fmu4cpp
 
 #endif//FMU4CPP_UTIL_HPP

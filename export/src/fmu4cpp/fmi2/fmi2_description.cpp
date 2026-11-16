@@ -12,18 +12,25 @@ using namespace fmu4cpp;
 
 std::string fmu_base::make_description() const {
 
+    if (!binary_.empty() || !clocks_.empty()) {
+        throw std::runtime_error("FMI 2.0 does not support Clock or Binary variables. Use FMI 3.0 instead.");
+    }
+
     const model_info m = get_model_info();
     std::stringstream ss;
     ss << R"(<?xml version="1.0" encoding="UTF-8"?>)" << "\n"
        << "<fmiModelDescription\n"
        << "\tfmiVersion=\"2.0\"\n"
-       << "\tmodelName=\"" << m.modelName << "\"\n"
+       << "\tmodelName=\"" << xml_escape(m.modelName) << "\"\n"
        << "\tguid=\"" << guid() << "\"\n"
        << "\tgenerationTool=\"fmu4cpp v" << to_string(library_version()) << "\"\n"
        << "\tgenerationDateAndTime=\"" << now() << "\"\n"
-       << "\tdescription=\"" << m.description << "\"\n"
-       << "\tauthor=\"" << m.author << "\"\n"
-       << "\tvariableNamingConvention=\"" << m.variableNamingConvention << "\""
+       << "\tdescription=\"" << xml_escape(m.description) << "\"\n"
+       << "\tauthor=\"" << xml_escape(m.author) << "\"\n";
+    if (!m.version.empty()) {
+        ss << "\tversion=\"" << xml_escape(m.version) << "\"\n";
+    }
+    ss << "\tvariableNamingConvention=\"" << xml_escape(m.variableNamingConvention) << "\""
        << ">\n\n";
 
     ss << std::boolalpha
@@ -75,7 +82,7 @@ std::string fmu_base::make_description() const {
         ss << "\t\t<!--"
            << "index=" << v->index() << "-->\n"
            << "\t\t<ScalarVariable name=\""
-           << v->name() << "\" valueReference=\"" << v->value_reference() << "\""
+           << xml_escape(v->name()) << "\" valueReference=\"" << v->value_reference() << "\""
            << " causality=\"" << to_string(v->causality()) << "\"";
 
         if (variability) {
@@ -86,7 +93,7 @@ std::string fmu_base::make_description() const {
         }
 
         if (auto desc = v->getDescription(); !desc.empty()) {
-            ss << " description=\"" << desc << "\"";
+            ss << " description=\"" << xml_escape(desc) << "\"";
         }
 
         ss << ">\n";
@@ -120,7 +127,7 @@ std::string fmu_base::make_description() const {
         } else if (auto s = dynamic_cast<const StringVariable *>(v)) {
             ss << "\t\t\t<String";
             if (requires_start(*v)) {
-                ss << " start=\"" << s->get() << "\"";
+                ss << " start=\"" << xml_escape(s->get()) << "\"";
             }
 
         } else if (auto b = dynamic_cast<const BoolVariable *>(v)) {
