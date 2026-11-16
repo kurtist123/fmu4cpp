@@ -47,7 +47,7 @@ public:
         register_real(
                 "height", &height)
                 .setCausality(causality_t::OUTPUT)
-                .setVariability(variability_t::CONTINUOUS))
+                .setVariability(variability_t::CONTINUOUS)
                 .setInitial(initial_t::EXACT);
 
         register_real(
@@ -117,6 +117,15 @@ Cross-compilation (64-bit linux/windows) occurs automatically when you push your
 
 Such easy, such wow.
 
+
+### FMI 3.0 Co-Simulation Support
+
+FMU4cpp provides production-ready FMI 3.0 Co-Simulation export capabilities:
+- **Event Mode & Lifecycle**: Full support for FMI 3.0 Event Mode (`fmi3EnterEventMode`, `fmi3EnterStepMode`, `fmi3UpdateDiscreteStates`) alongside Co-Simulation Step Mode.
+- **Triggered Clocks**: Register triggered input and output clocks via `register_clock(...)`, inspect activation states via `fmi3GetClock`, and trigger inputs via `fmi3SetClock`.
+- **Clocked Variables**: Associate discrete scalar or binary variables with registered clocks using `.setClocks(...)`.
+- **Binary Variables**: Support arbitrary binary byte payloads (`std::vector<uint8_t>`) with MIME type and `maxSize` metadata.
+- **Dual-Target Export**: Seamlessly generate both FMI 2.0 and FMI 3.0 FMU packages simultaneously using `generateFMU(MyModel FMI_VERSIONS fmi2 fmi3 ...)`.
 
 ### Requirements
 * C++17 compiler
