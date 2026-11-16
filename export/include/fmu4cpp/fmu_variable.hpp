@@ -14,6 +14,7 @@
 
 namespace fmu4cpp {
 
+    using value_ref = unsigned int;
     using BinaryType = std::vector<uint8_t>;
 
     enum class causality_t {
@@ -39,9 +40,14 @@ namespace fmu4cpp {
         CALCULATED,
     };
 
+    enum class interval_t {
+        TRIGGERED
+    };
+
     std::string to_string(const causality_t &c);
     std::string to_string(const variability_t &v);
     std::string to_string(const initial_t &i);
+    std::string to_string(const interval_t &i);
 
 
     class VariableBase {
@@ -53,6 +59,7 @@ namespace fmu4cpp {
         std::vector<std::string> annotations_;
         std::vector<std::string> dependencies_;
         std::string description_;
+        std::optional<value_ref> associated_clock_;
 
     public:
         VariableBase(std::string name, unsigned int vr, size_t index)
@@ -84,6 +91,14 @@ namespace fmu4cpp {
 
         [[nodiscard]] std::string getDescription() const {
             return description_;
+        }
+
+        [[nodiscard]] std::optional<value_ref> associated_clock() const {
+            return associated_clock_;
+        }
+
+        [[nodiscard]] std::optional<value_ref> getAssociatedClock() const {
+            return associated_clock_;
         }
 
         [[nodiscard]] std::vector<std::string> getDependencies() const {
@@ -152,6 +167,16 @@ namespace fmu4cpp {
 
         V &setInitial(initial_t initial) {
             initial_ = initial;
+            return *static_cast<V *>(this);
+        }
+
+        V &setAssociatedClock(std::optional<value_ref> clock_vr) {
+            associated_clock_ = clock_vr;
+            return *static_cast<V *>(this);
+        }
+
+        V &set_associated_clock(std::optional<value_ref> clock_vr) {
+            associated_clock_ = clock_vr;
             return *static_cast<V *>(this);
         }
 
@@ -316,6 +341,119 @@ namespace fmu4cpp {
                 const std::function<BinaryType()> &getter,
                 const std::optional<std::function<void(BinaryType)>> &setter)
             : Variable(name, vr, index, getter, setter) {}
+
+        [[nodiscard]] const std::string &mime_type() const {
+            return mimeType_;
+        }
+
+        [[nodiscard]] const std::string &getMimeType() const {
+            return mimeType_;
+        }
+
+        BinaryVariable &setMimeType(std::string mimeType) {
+            mimeType_ = std::move(mimeType);
+            return *this;
+        }
+
+        BinaryVariable &set_mime_type(std::string mimeType) {
+            mimeType_ = std::move(mimeType);
+            return *this;
+        }
+
+        [[nodiscard]] std::optional<size_t> max_size() const {
+            return maxSize_;
+        }
+
+        [[nodiscard]] std::optional<size_t> getMaxSize() const {
+            return maxSize_;
+        }
+
+        BinaryVariable &setMaxSize(std::optional<size_t> maxSize) {
+            maxSize_ = maxSize;
+            return *this;
+        }
+
+        BinaryVariable &set_max_size(std::optional<size_t> maxSize) {
+            maxSize_ = maxSize;
+            return *this;
+        }
+
+    private:
+        std::string mimeType_{"application/octet-stream"};
+        std::optional<size_t> maxSize_;
+    };
+
+    class ClockVariable final : public VariableBase {
+
+    public:
+        ClockVariable(
+                std::string name,
+                unsigned int vr,
+                size_t index,
+                causality_t causality)
+            : VariableBase(std::move(name), vr, index),
+              interval_(interval_t::TRIGGERED),
+              can_be_deactivated_(false),
+              active_(false) {
+            if (causality != causality_t::INPUT && causality != causality_t::OUTPUT) {
+                throw std::invalid_argument("Clock variable must have causality INPUT or OUTPUT");
+            }
+            causality_ = causality;
+            variability_ = variability_t::DISCRETE;
+        }
+
+        [[nodiscard]] interval_t interval() const {
+            return interval_;
+        }
+
+        [[nodiscard]] bool can_be_deactivated() const {
+            return can_be_deactivated_;
+        }
+
+        [[nodiscard]] bool canBeDeactivated() const {
+            return can_be_deactivated_;
+        }
+
+        [[nodiscard]] bool get() const {
+            return active_;
+        }
+
+        void set(bool val) {
+            active_ = val;
+        }
+
+        ClockVariable &setDescription(const std::string &description) {
+            description_ = description;
+            return *this;
+        }
+
+        ClockVariable &setDependencies(const std::vector<std::string> &dependencies) {
+            if (causality_ != causality_t::OUTPUT) {
+                throw std::logic_error("Can only declare dependencies for outputs!");
+            }
+            dependencies_.clear();
+            for (const auto &d: dependencies) {
+                dependencies_.emplace_back(d);
+            }
+            return *this;
+        }
+
+        ClockVariable &setAnnotations(const std::vector<std::string> &annotations) {
+            for (const auto &i: annotations) {
+                annotations_.emplace_back(i);
+            }
+            return *this;
+        }
+
+        ClockVariable &addAnnotation(const std::string &annotation) {
+            annotations_.emplace_back(annotation);
+            return *this;
+        }
+
+    private:
+        interval_t interval_{interval_t::TRIGGERED};
+        bool can_be_deactivated_{false};
+        bool active_{false};
     };
 
     bool requires_start(const VariableBase &v);

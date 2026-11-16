@@ -17,6 +17,7 @@ namespace fmu4cpp {
             const std::vector<BoolVariable> &v3,
             const std::vector<StringVariable> &v4,
             const std::vector<BinaryVariable> &v5,
+            const std::vector<ClockVariable> &v6,
             const std::function<bool(const VariableBase &)> &predicate = [](auto &v) { return true; }) {
 
         std::vector<const VariableBase *> vars;
@@ -34,6 +35,7 @@ namespace fmu4cpp {
         add_if_predicate(v3);
         add_if_predicate(v4);
         add_if_predicate(v5);
+        add_if_predicate(v6);
 
         return vars;
     }
@@ -43,9 +45,20 @@ namespace fmu4cpp {
             const std::vector<RealVariable> &v2,
             const std::vector<BoolVariable> &v3,
             const std::vector<StringVariable> &v4,
+            const std::vector<BinaryVariable> &v5,
             const std::function<bool(const VariableBase &)> &predicate = [](auto &v) { return true; }) {
 
-        return collect(v1, v2, v3, v4, {}, predicate);
+        return collect(v1, v2, v3, v4, v5, {}, predicate);
+    }
+
+    inline std::vector<const VariableBase *> collect(
+            const std::vector<IntVariable> &v1,
+            const std::vector<RealVariable> &v2,
+            const std::vector<BoolVariable> &v3,
+            const std::vector<StringVariable> &v4,
+            const std::function<bool(const VariableBase &)> &predicate = [](auto &v) { return true; }) {
+
+        return collect(v1, v2, v3, v4, {}, {}, predicate);
     }
 
 

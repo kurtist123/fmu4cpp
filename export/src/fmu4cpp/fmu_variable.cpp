@@ -51,7 +51,18 @@ namespace fmu4cpp {
         throw std::logic_error("Invalid initial encountered");
     }
 
+    std::string to_string(const interval_t &i) {
+        switch (i) {
+            case interval_t::TRIGGERED:
+                return "triggered";
+        }
+        throw std::logic_error("Invalid interval encountered");
+    }
+
     bool requires_start(const VariableBase &v) {
+        if (dynamic_cast<const ClockVariable *>(&v)) {
+            return false;
+        }
         // clang-format off
         return v.initial() == initial_t::EXACT
                || v.initial() == initial_t::APPROX

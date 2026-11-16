@@ -114,12 +114,25 @@ namespace fmu4cpp {
         [[nodiscard]] std::optional<BoolVariable> get_bool_variable(const std::string &name) const;
         [[nodiscard]] std::optional<StringVariable> get_string_variable(const std::string &name) const;
         [[nodiscard]] std::optional<BinaryVariable> get_binary_variable(const std::string &name) const;
+        [[nodiscard]] std::optional<ClockVariable> get_clock_variable(const std::string &name) const;
+        [[nodiscard]] const std::vector<ClockVariable> &get_clocks() const { return clocks_; }
 
         void enter_initialisation_mode(double start, std::optional<double> stop, std::optional<double> tolerance);
         virtual void exit_initialisation_mode();
         bool step(double currentTime, double dt);
         virtual void terminate();
         virtual void reset();
+
+        virtual void on_enter_event_mode() noexcept {}
+        virtual void on_exit_event_mode() noexcept {}
+        virtual void update_discrete_states(bool &discreteStatesNeedUpdate, bool &terminateSimulation) {}
+
+        void notify_output_event(value_ref clock_vr);
+        [[nodiscard]] bool has_pending_output_events() const noexcept;
+        void clear_triggered_clocks() noexcept;
+
+        [[nodiscard]] bool get_clock(value_ref vr) const;
+        void set_clock(value_ref vr, bool val);
 
         void get_integer(const unsigned int vr[], size_t nvr, int value[]) const;
         void get_real(const unsigned int vr[], size_t nvr, double value[]) const;
@@ -187,6 +200,9 @@ namespace fmu4cpp {
                                         const std::function<std::vector<uint8_t>()> &getter,
                                         const std::optional<std::function<void(std::vector<uint8_t>)>> &setter = std::nullopt);
 
+        ClockVariable &register_clock(std::string name, value_ref vr, causality_t causality);
+        ClockVariable &register_clock(std::string name, causality_t causality);
+
         virtual void enter_initialisation_mode();
         virtual bool do_step(double dt) = 0;
 
@@ -232,6 +248,9 @@ namespace fmu4cpp {
         std::vector<BinaryVariable> binary_;
         std::vector<std::vector<uint8_t>> binaryBuffer_;
         std::unordered_map<unsigned int, size_t> vrToBinaryIndices_;
+
+        std::vector<ClockVariable> clocks_;
+        std::unordered_map<unsigned int, size_t> vrToClockIndices_;
 
         std::function<void *(void *)> get_state_ptr_{nullptr};
         const state::Ops *state_ops_{nullptr};

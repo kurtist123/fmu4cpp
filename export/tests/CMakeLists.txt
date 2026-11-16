@@ -39,6 +39,7 @@ endfunction()
 
 make_generic_test(basic_test basic_test.cpp)
 make_generic_test(test_resource test_resource.cpp)
+make_generic_test(clock_and_event_test clock_and_event_test.cpp)
 
 add_subdirectory(fmi2)
 add_subdirectory(fmi3)

@@ -58,6 +58,56 @@ std::optional<BinaryVariable> fmu_base::get_binary_variable(const std::string &n
     return std::nullopt;
 }
 
+std::optional<ClockVariable> fmu_base::get_clock_variable(const std::string &name) const {
+    for (const auto &v: clocks_) {
+        if (v.name() == name) return v;
+    }
+    return std::nullopt;
+}
+
+bool fmu_base::get_clock(value_ref vr) const {
+    const auto it = vrToClockIndices_.find(vr);
+    if (it == vrToClockIndices_.end()) {
+        throw std::out_of_range("Unknown clock value reference: " + std::to_string(vr));
+    }
+    return clocks_[it->second].get();
+}
+
+void fmu_base::set_clock(value_ref vr, bool val) {
+    const auto it = vrToClockIndices_.find(vr);
+    if (it == vrToClockIndices_.end()) {
+        throw std::out_of_range("Unknown clock value reference: " + std::to_string(vr));
+    }
+    clocks_[it->second].set(val);
+}
+
+void fmu_base::notify_output_event(value_ref clock_vr) {
+    const auto it = vrToClockIndices_.find(clock_vr);
+    if (it == vrToClockIndices_.end()) {
+        throw std::invalid_argument("Unknown clock value reference: " + std::to_string(clock_vr));
+    }
+    auto &clock = clocks_[it->second];
+    if (clock.causality() != causality_t::OUTPUT) {
+        throw std::logic_error("Cannot notify output event on non-output clock: " + clock.name());
+    }
+    clock.set(true);
+}
+
+bool fmu_base::has_pending_output_events() const noexcept {
+    for (const auto &c: clocks_) {
+        if (c.causality() == causality_t::OUTPUT && c.get()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void fmu_base::clear_triggered_clocks() noexcept {
+    for (auto &c: clocks_) {
+        c.set(false);
+    }
+}
+
 void fmu_base::enter_initialisation_mode(double start, std::optional<double> stop, std::optional<double> tolerance) {
     time_ = start;
     stop_ = stop;
@@ -132,24 +182,51 @@ void fmu_base::get_boolean(const unsigned int vr[], size_t nvr, bool value[]) co
 }
 
 void fmu_base::get_string(const unsigned int vr[], size_t nvr, const char *value[]) {
-    stringBuffer_.clear();
+    if (stringBuffer_.size() < strings_.size()) {
+        stringBuffer_.resize(strings_.size());
+    }
     for (unsigned i = 0; i < nvr; i++) {
         const auto ref = vr[i];
         const auto idx = vrToStringIndices_.at(ref);
-        stringBuffer_.emplace_back(strings_[idx].get());
-        value[i] = stringBuffer_.back().c_str();
+        bool already_fetched = false;
+        for (unsigned prev = 0; prev < i; prev++) {
+            if (vr[prev] == ref) {
+                already_fetched = true;
+                break;
+            }
+        }
+        if (!already_fetched) {
+            auto val = strings_[idx].get();
+            if (stringBuffer_[idx] != val) {
+                stringBuffer_[idx] = std::move(val);
+            }
+        }
+        value[i] = stringBuffer_[idx].c_str();
     }
 }
 
 void fmu_base::get_binary(const unsigned int vr[], size_t nvr, size_t valueSizes[], const uint8_t *values[]) {
-    binaryBuffer_.clear();
-    for (auto i = 0; i < nvr; i++) {
+    if (binaryBuffer_.size() < binary_.size()) {
+        binaryBuffer_.resize(binary_.size());
+    }
+    for (size_t i = 0; i < nvr; i++) {
         const auto ref = vr[i];
         const auto idx = vrToBinaryIndices_.at(ref);
-        const auto &data = binary_[idx].get();
-        valueSizes[i] = data.size();
-        binaryBuffer_.emplace_back(data.begin(), data.end());
-        values[i] = binaryBuffer_.back().data();
+        bool already_fetched = false;
+        for (size_t prev = 0; prev < i; prev++) {
+            if (vr[prev] == ref) {
+                already_fetched = true;
+                break;
+            }
+        }
+        if (!already_fetched) {
+            auto val = binary_[idx].get();
+            if (binaryBuffer_[idx] != val) {
+                binaryBuffer_[idx] = std::move(val);
+            }
+        }
+        valueSizes[i] = binaryBuffer_[idx].size();
+        values[i] = binaryBuffer_[idx].empty() ? nullptr : binaryBuffer_[idx].data();
     }
 }
 
@@ -249,6 +326,7 @@ StringVariable &fmu_base::register_string(const std::string &name, std::string *
     const auto vr = static_cast<unsigned int>(numVariables_++);
     auto &v = strings_.emplace_back(name, vr, numVariables_, ptr, onChange);
     vrToStringIndices_.emplace(v.value_reference(), strings_.size() - 1);
+    stringBuffer_.resize(strings_.size());
     return v;
 }
 
@@ -256,6 +334,7 @@ StringVariable &fmu_base::register_string(const std::string &name, const std::fu
     const auto vr = static_cast<unsigned int>(numVariables_++);
     auto &v = strings_.emplace_back(name, vr, numVariables_, getter, setter);
     vrToStringIndices_.emplace(v.value_reference(), strings_.size() - 1);
+    stringBuffer_.resize(strings_.size());
     return v;
 }
 
@@ -263,6 +342,7 @@ BinaryVariable &fmu_base::register_binary(const std::string &name, BinaryType *p
     const auto vr = static_cast<unsigned int>(numVariables_++);
     auto &v = binary_.emplace_back(name, vr, numVariables_, ptr, onChange);
     vrToBinaryIndices_.emplace(v.value_reference(), binary_.size() - 1);
+    binaryBuffer_.resize(binary_.size());
     return v;
 }
 
@@ -270,7 +350,35 @@ BinaryVariable &fmu_base::register_binary(const std::string &name, const std::fu
     const auto vr = static_cast<unsigned int>(numVariables_++);
     auto &v = binary_.emplace_back(name, vr, numVariables_, getter, setter);
     vrToBinaryIndices_.emplace(v.value_reference(), binary_.size() - 1);
+    binaryBuffer_.resize(binary_.size());
     return v;
+}
+
+ClockVariable &fmu_base::register_clock(std::string name, value_ref vr, causality_t causality) {
+    if (causality != causality_t::INPUT && causality != causality_t::OUTPUT) {
+        throw std::invalid_argument("Clock variable must have causality INPUT or OUTPUT");
+    }
+    if (vrToClockIndices_.find(vr) != vrToClockIndices_.end() ||
+        vrToIntegerIndices_.find(vr) != vrToIntegerIndices_.end() ||
+        vrToRealIndices_.find(vr) != vrToRealIndices_.end() ||
+        vrToBooleanIndices_.find(vr) != vrToBooleanIndices_.end() ||
+        vrToStringIndices_.find(vr) != vrToStringIndices_.end() ||
+        vrToBinaryIndices_.find(vr) != vrToBinaryIndices_.end()) {
+        throw std::invalid_argument("Duplicate value reference: " + std::to_string(vr));
+    }
+
+    if (vr >= numVariables_) {
+        numVariables_ = static_cast<size_t>(vr + 1);
+    }
+    const auto index = numVariables_;
+    auto &v = clocks_.emplace_back(std::move(name), vr, index, causality);
+    vrToClockIndices_.emplace(vr, clocks_.size() - 1);
+    return v;
+}
+
+ClockVariable &fmu_base::register_clock(std::string name, causality_t causality) {
+    const auto vr = static_cast<unsigned int>(numVariables_);
+    return register_clock(std::move(name), vr, causality);
 }
 
 [[maybe_unused]] std::string fmu_base::guid() const {
@@ -287,7 +395,7 @@ BinaryVariable &fmu_base::register_binary(const std::string &name, const std::fu
         ss << str;
     }
 
-    const auto vars = collect(integers_, reals_, booleans_, strings_);
+    const auto vars = collect(integers_, reals_, booleans_, strings_, binary_, clocks_);
     for (const auto &v: vars) {
         ss << v->name();
         ss << std::to_string(v->index());
@@ -312,7 +420,7 @@ void fmu_base::debugLog(const fmiStatus s, const std::string &message) const {
 
 std::vector<unsigned> fmu_base::get_value_refs() const {
     std::vector<unsigned int> indices;
-    const auto allVars = collect(integers_, reals_, booleans_, strings_);
+    const auto allVars = collect(integers_, reals_, booleans_, strings_, binary_, clocks_);
     indices.reserve(allVars.size());
     for (const auto &v: allVars) {
         indices.emplace_back(v->value_reference());

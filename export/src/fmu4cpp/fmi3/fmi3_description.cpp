@@ -23,6 +23,8 @@ namespace {
             return "Boolean";
         } else if (dynamic_cast<const BinaryVariable *>(v)) {
             return "Binary";
+        } else if (dynamic_cast<const ClockVariable *>(v)) {
+            return "Clock";
         }
         throw std::runtime_error("Unknown variable type");
     }
@@ -85,7 +87,7 @@ std::string fmu_base::make_description() const {
     ss << "\t<ModelVariables>\n";
 
     const auto allVars = [&] {
-        auto allVars = collect(integers_, reals_, booleans_, strings_, binary_);
+        auto allVars = collect(integers_, reals_, booleans_, strings_, binary_, clocks_);
         std::sort(allVars.begin(), allVars.end(), [](const VariableBase *v1, const VariableBase *v2) {
             return v1->index() < v2->index();
         });
@@ -178,7 +180,7 @@ std::string fmu_base::make_description() const {
 
     ss << "\t<ModelStructure>\n";
 
-    const auto unknowns = collect(integers_, reals_, booleans_, strings_, [](auto &v) {
+    const auto unknowns = collect(integers_, reals_, booleans_, strings_, binary_, clocks_, [](auto &v) {
         return v.causality() == causality_t::OUTPUT;
     });
 
@@ -206,8 +208,8 @@ std::string fmu_base::make_description() const {
         }
     }
 
-    const auto initialUnknowns = collect(integers_, reals_, booleans_, strings_, [](auto &v) {
-        return (v.causality() == causality_t::OUTPUT && v.initial() == initial_t::APPROX || v.initial() == initial_t::CALCULATED) || v.causality() == causality_t::CALCULATED_PARAMETER;
+    const auto initialUnknowns = collect(integers_, reals_, booleans_, strings_, binary_, clocks_, [](auto &v) {
+        return (v.causality() == causality_t::OUTPUT && (v.initial() == initial_t::APPROX || v.initial() == initial_t::CALCULATED)) || v.causality() == causality_t::CALCULATED_PARAMETER;
     });
     if (!initialUnknowns.empty()) {
         for (const auto &v: initialUnknowns) {
