@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <functional>
 #include <sstream>
+#include <stdexcept>
 #include <utility>
 
 
@@ -273,9 +274,22 @@ void fmu_base::set_binary(const unsigned int vr[], size_t nvr, const size_t valu
     for (unsigned i = 0; i < nvr; i++) {
         const auto ref = vr[i];
         const auto idx = vrToBinaryIndices_.at(ref);
-        const uint8_t *ptr = value[i];
+        const auto &var = binary_[idx];
         const size_t len = valueSizes[i];
-        binary_[idx].set(std::vector(ptr, ptr + len));
+        if (var.max_size().has_value() && len > *var.max_size()) {
+            throw std::invalid_argument("Binary variable size " + std::to_string(len) +
+                                       " exceeds maxSize " + std::to_string(*var.max_size()) +
+                                       " for variable " + var.name());
+        }
+        const uint8_t *ptr = value ? value[i] : nullptr;
+        if (len == 0) {
+            binary_[idx].set(std::vector<uint8_t>());
+        } else {
+            if (!ptr) {
+                throw std::invalid_argument("Null data pointer for non-empty binary variable " + var.name());
+            }
+            binary_[idx].set(std::vector<uint8_t>(ptr, ptr + len));
+        }
     }
 }
 
