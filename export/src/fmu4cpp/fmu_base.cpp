@@ -66,6 +66,62 @@ std::optional<ClockVariable> fmu_base::get_clock_variable(const std::string &nam
     return std::nullopt;
 }
 
+std::optional<Float32Variable> fmu_base::get_float32_variable(const std::string &name) const {
+    for (const auto &v: float32s_) {
+        if (v.name() == name) return v;
+    }
+    return std::nullopt;
+}
+
+std::optional<Int8Variable> fmu_base::get_int8_variable(const std::string &name) const {
+    for (const auto &v: int8s_) {
+        if (v.name() == name) return v;
+    }
+    return std::nullopt;
+}
+
+std::optional<UInt8Variable> fmu_base::get_uint8_variable(const std::string &name) const {
+    for (const auto &v: uint8s_) {
+        if (v.name() == name) return v;
+    }
+    return std::nullopt;
+}
+
+std::optional<Int16Variable> fmu_base::get_int16_variable(const std::string &name) const {
+    for (const auto &v: int16s_) {
+        if (v.name() == name) return v;
+    }
+    return std::nullopt;
+}
+
+std::optional<UInt16Variable> fmu_base::get_uint16_variable(const std::string &name) const {
+    for (const auto &v: uint16s_) {
+        if (v.name() == name) return v;
+    }
+    return std::nullopt;
+}
+
+std::optional<UInt32Variable> fmu_base::get_uint32_variable(const std::string &name) const {
+    for (const auto &v: uint32s_) {
+        if (v.name() == name) return v;
+    }
+    return std::nullopt;
+}
+
+std::optional<Int64Variable> fmu_base::get_int64_variable(const std::string &name) const {
+    for (const auto &v: int64s_) {
+        if (v.name() == name) return v;
+    }
+    return std::nullopt;
+}
+
+std::optional<UInt64Variable> fmu_base::get_uint64_variable(const std::string &name) const {
+    for (const auto &v: uint64s_) {
+        if (v.name() == name) return v;
+    }
+    return std::nullopt;
+}
+
 bool fmu_base::get_clock(value_ref vr) const {
     const auto it = vrToClockIndices_.find(vr);
     if (it == vrToClockIndices_.end()) {
@@ -166,6 +222,70 @@ void fmu_base::get_real(const unsigned int vr[], size_t nvr, double value[]) con
     }
 }
 
+void fmu_base::get_float32(const unsigned int vr[], size_t nvr, float value[]) const {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToFloat32Indices_.at(ref);
+        value[i] = float32s_[idx].get();
+    }
+}
+
+void fmu_base::get_int8(const unsigned int vr[], size_t nvr, int8_t value[]) const {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToInt8Indices_.at(ref);
+        value[i] = int8s_[idx].get();
+    }
+}
+
+void fmu_base::get_uint8(const unsigned int vr[], size_t nvr, uint8_t value[]) const {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToUInt8Indices_.at(ref);
+        value[i] = uint8s_[idx].get();
+    }
+}
+
+void fmu_base::get_int16(const unsigned int vr[], size_t nvr, int16_t value[]) const {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToInt16Indices_.at(ref);
+        value[i] = int16s_[idx].get();
+    }
+}
+
+void fmu_base::get_uint16(const unsigned int vr[], size_t nvr, uint16_t value[]) const {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToUInt16Indices_.at(ref);
+        value[i] = uint16s_[idx].get();
+    }
+}
+
+void fmu_base::get_uint32(const unsigned int vr[], size_t nvr, uint32_t value[]) const {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToUInt32Indices_.at(ref);
+        value[i] = uint32s_[idx].get();
+    }
+}
+
+void fmu_base::get_int64(const unsigned int vr[], size_t nvr, int64_t value[]) const {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToInt64Indices_.at(ref);
+        value[i] = int64s_[idx].get();
+    }
+}
+
+void fmu_base::get_uint64(const unsigned int vr[], size_t nvr, uint64_t value[]) const {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToUInt64Indices_.at(ref);
+        value[i] = uint64s_[idx].get();
+    }
+}
+
 void fmu_base::get_boolean(const unsigned int vr[], size_t nvr, int value[]) const {
     for (unsigned i = 0; i < nvr; i++) {
         const auto ref = vr[i];
@@ -244,6 +364,70 @@ void fmu_base::set_real(const unsigned int vr[], size_t nvr, const double value[
         const auto ref = vr[i];
         const auto idx = vrToRealIndices_.at(ref);
         reals_[idx].set(value[i]);
+    }
+}
+
+void fmu_base::set_float32(const unsigned int vr[], size_t nvr, const float value[]) {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToFloat32Indices_.at(ref);
+        float32s_[idx].set(value[i]);
+    }
+}
+
+void fmu_base::set_int8(const unsigned int vr[], size_t nvr, const int8_t value[]) {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToInt8Indices_.at(ref);
+        int8s_[idx].set(value[i]);
+    }
+}
+
+void fmu_base::set_uint8(const unsigned int vr[], size_t nvr, const uint8_t value[]) {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToUInt8Indices_.at(ref);
+        uint8s_[idx].set(value[i]);
+    }
+}
+
+void fmu_base::set_int16(const unsigned int vr[], size_t nvr, const int16_t value[]) {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToInt16Indices_.at(ref);
+        int16s_[idx].set(value[i]);
+    }
+}
+
+void fmu_base::set_uint16(const unsigned int vr[], size_t nvr, const uint16_t value[]) {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToUInt16Indices_.at(ref);
+        uint16s_[idx].set(value[i]);
+    }
+}
+
+void fmu_base::set_uint32(const unsigned int vr[], size_t nvr, const uint32_t value[]) {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToUInt32Indices_.at(ref);
+        uint32s_[idx].set(value[i]);
+    }
+}
+
+void fmu_base::set_int64(const unsigned int vr[], size_t nvr, const int64_t value[]) {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToInt64Indices_.at(ref);
+        int64s_[idx].set(value[i]);
+    }
+}
+
+void fmu_base::set_uint64(const unsigned int vr[], size_t nvr, const uint64_t value[]) {
+    for (size_t i = 0; i < nvr; i++) {
+        const auto ref = vr[i];
+        const auto idx = vrToUInt64Indices_.at(ref);
+        uint64s_[idx].set(value[i]);
     }
 }
 void fmu_base::set_boolean(const unsigned int vr[], size_t nvr, const int value[]) {
@@ -368,6 +552,118 @@ BinaryVariable &fmu_base::register_binary(const std::string &name, const std::fu
     return v;
 }
 
+Float32Variable &fmu_base::register_float32(const std::string &name, float *ptr, const std::function<void()> &onChange) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = float32s_.emplace_back(name, vr, numVariables_, ptr, onChange);
+    vrToFloat32Indices_.emplace(v.value_reference(), float32s_.size() - 1);
+    return v;
+}
+
+Float32Variable &fmu_base::register_float32(const std::string &name, const std::function<float()> &getter, const std::optional<std::function<void(float)>> &setter) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = float32s_.emplace_back(name, vr, numVariables_, getter, setter);
+    vrToFloat32Indices_.emplace(v.value_reference(), float32s_.size() - 1);
+    return v;
+}
+
+Int8Variable &fmu_base::register_int8(const std::string &name, int8_t *ptr, const std::function<void()> &onChange) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = int8s_.emplace_back(name, vr, numVariables_, ptr, onChange);
+    vrToInt8Indices_.emplace(v.value_reference(), int8s_.size() - 1);
+    return v;
+}
+
+Int8Variable &fmu_base::register_int8(const std::string &name, const std::function<int8_t()> &getter, const std::optional<std::function<void(int8_t)>> &setter) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = int8s_.emplace_back(name, vr, numVariables_, getter, setter);
+    vrToInt8Indices_.emplace(v.value_reference(), int8s_.size() - 1);
+    return v;
+}
+
+UInt8Variable &fmu_base::register_uint8(const std::string &name, uint8_t *ptr, const std::function<void()> &onChange) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = uint8s_.emplace_back(name, vr, numVariables_, ptr, onChange);
+    vrToUInt8Indices_.emplace(v.value_reference(), uint8s_.size() - 1);
+    return v;
+}
+
+UInt8Variable &fmu_base::register_uint8(const std::string &name, const std::function<uint8_t()> &getter, const std::optional<std::function<void(uint8_t)>> &setter) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = uint8s_.emplace_back(name, vr, numVariables_, getter, setter);
+    vrToUInt8Indices_.emplace(v.value_reference(), uint8s_.size() - 1);
+    return v;
+}
+
+Int16Variable &fmu_base::register_int16(const std::string &name, int16_t *ptr, const std::function<void()> &onChange) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = int16s_.emplace_back(name, vr, numVariables_, ptr, onChange);
+    vrToInt16Indices_.emplace(v.value_reference(), int16s_.size() - 1);
+    return v;
+}
+
+Int16Variable &fmu_base::register_int16(const std::string &name, const std::function<int16_t()> &getter, const std::optional<std::function<void(int16_t)>> &setter) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = int16s_.emplace_back(name, vr, numVariables_, getter, setter);
+    vrToInt16Indices_.emplace(v.value_reference(), int16s_.size() - 1);
+    return v;
+}
+
+UInt16Variable &fmu_base::register_uint16(const std::string &name, uint16_t *ptr, const std::function<void()> &onChange) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = uint16s_.emplace_back(name, vr, numVariables_, ptr, onChange);
+    vrToUInt16Indices_.emplace(v.value_reference(), uint16s_.size() - 1);
+    return v;
+}
+
+UInt16Variable &fmu_base::register_uint16(const std::string &name, const std::function<uint16_t()> &getter, const std::optional<std::function<void(uint16_t)>> &setter) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = uint16s_.emplace_back(name, vr, numVariables_, getter, setter);
+    vrToUInt16Indices_.emplace(v.value_reference(), uint16s_.size() - 1);
+    return v;
+}
+
+UInt32Variable &fmu_base::register_uint32(const std::string &name, uint32_t *ptr, const std::function<void()> &onChange) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = uint32s_.emplace_back(name, vr, numVariables_, ptr, onChange);
+    vrToUInt32Indices_.emplace(v.value_reference(), uint32s_.size() - 1);
+    return v;
+}
+
+UInt32Variable &fmu_base::register_uint32(const std::string &name, const std::function<uint32_t()> &getter, const std::optional<std::function<void(uint32_t)>> &setter) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = uint32s_.emplace_back(name, vr, numVariables_, getter, setter);
+    vrToUInt32Indices_.emplace(v.value_reference(), uint32s_.size() - 1);
+    return v;
+}
+
+Int64Variable &fmu_base::register_int64(const std::string &name, int64_t *ptr, const std::function<void()> &onChange) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = int64s_.emplace_back(name, vr, numVariables_, ptr, onChange);
+    vrToInt64Indices_.emplace(v.value_reference(), int64s_.size() - 1);
+    return v;
+}
+
+Int64Variable &fmu_base::register_int64(const std::string &name, const std::function<int64_t()> &getter, const std::optional<std::function<void(int64_t)>> &setter) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = int64s_.emplace_back(name, vr, numVariables_, getter, setter);
+    vrToInt64Indices_.emplace(v.value_reference(), int64s_.size() - 1);
+    return v;
+}
+
+UInt64Variable &fmu_base::register_uint64(const std::string &name, uint64_t *ptr, const std::function<void()> &onChange) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = uint64s_.emplace_back(name, vr, numVariables_, ptr, onChange);
+    vrToUInt64Indices_.emplace(v.value_reference(), uint64s_.size() - 1);
+    return v;
+}
+
+UInt64Variable &fmu_base::register_uint64(const std::string &name, const std::function<uint64_t()> &getter, const std::optional<std::function<void(uint64_t)>> &setter) {
+    const auto vr = static_cast<unsigned int>(numVariables_++);
+    auto &v = uint64s_.emplace_back(name, vr, numVariables_, getter, setter);
+    vrToUInt64Indices_.emplace(v.value_reference(), uint64s_.size() - 1);
+    return v;
+}
+
 ClockVariable &fmu_base::register_clock(std::string name, value_ref vr, causality_t causality) {
     if (causality != causality_t::INPUT && causality != causality_t::OUTPUT) {
         throw std::invalid_argument("Clock variable must have causality INPUT or OUTPUT");
@@ -377,7 +673,15 @@ ClockVariable &fmu_base::register_clock(std::string name, value_ref vr, causalit
         vrToRealIndices_.find(vr) != vrToRealIndices_.end() ||
         vrToBooleanIndices_.find(vr) != vrToBooleanIndices_.end() ||
         vrToStringIndices_.find(vr) != vrToStringIndices_.end() ||
-        vrToBinaryIndices_.find(vr) != vrToBinaryIndices_.end()) {
+        vrToBinaryIndices_.find(vr) != vrToBinaryIndices_.end() ||
+        vrToFloat32Indices_.find(vr) != vrToFloat32Indices_.end() ||
+        vrToInt8Indices_.find(vr) != vrToInt8Indices_.end() ||
+        vrToUInt8Indices_.find(vr) != vrToUInt8Indices_.end() ||
+        vrToInt16Indices_.find(vr) != vrToInt16Indices_.end() ||
+        vrToUInt16Indices_.find(vr) != vrToUInt16Indices_.end() ||
+        vrToUInt32Indices_.find(vr) != vrToUInt32Indices_.end() ||
+        vrToInt64Indices_.find(vr) != vrToInt64Indices_.end() ||
+        vrToUInt64Indices_.find(vr) != vrToUInt64Indices_.end()) {
         throw std::invalid_argument("Duplicate value reference: " + std::to_string(vr));
     }
 
@@ -395,6 +699,33 @@ ClockVariable &fmu_base::register_clock(std::string name, causality_t causality)
     return register_clock(std::move(name), vr, causality);
 }
 
+std::vector<const VariableBase *> fmu_base::collect_variables(
+        const std::function<bool(const VariableBase &)> &predicate) const {
+    std::vector<const VariableBase *> vars;
+    const auto add_if = [&vars, &predicate](const auto &vec) {
+        for (const auto &v: vec) {
+            if (predicate(v)) {
+                vars.push_back(&v);
+            }
+        }
+    };
+    add_if(integers_);
+    add_if(reals_);
+    add_if(booleans_);
+    add_if(strings_);
+    add_if(binary_);
+    add_if(clocks_);
+    add_if(float32s_);
+    add_if(int8s_);
+    add_if(uint8s_);
+    add_if(int16s_);
+    add_if(uint16s_);
+    add_if(uint32s_);
+    add_if(int64s_);
+    add_if(uint64s_);
+    return vars;
+}
+
 [[maybe_unused]] std::string fmu_base::guid() const {
     const model_info info = get_model_info();
     const std::vector content{
@@ -409,7 +740,7 @@ ClockVariable &fmu_base::register_clock(std::string name, causality_t causality)
         ss << str;
     }
 
-    const auto vars = collect(integers_, reals_, booleans_, strings_, binary_, clocks_);
+    const auto vars = collect_variables();
     for (const auto &v: vars) {
         ss << v->name();
         ss << std::to_string(v->index());
@@ -434,7 +765,7 @@ void fmu_base::debugLog(const fmiStatus s, const std::string &message) const {
 
 std::vector<unsigned> fmu_base::get_value_refs() const {
     std::vector<unsigned int> indices;
-    const auto allVars = collect(integers_, reals_, booleans_, strings_, binary_, clocks_);
+    const auto allVars = collect_variables();
     indices.reserve(allVars.size());
     for (const auto &v: allVars) {
         indices.emplace_back(v->value_reference());

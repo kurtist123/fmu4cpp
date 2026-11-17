@@ -17,6 +17,22 @@ namespace {
             return "Int32";
         } else if (dynamic_cast<const RealVariable *>(v)) {
             return "Float64";
+        } else if (dynamic_cast<const Float32Variable *>(v)) {
+            return "Float32";
+        } else if (dynamic_cast<const Int8Variable *>(v)) {
+            return "Int8";
+        } else if (dynamic_cast<const UInt8Variable *>(v)) {
+            return "UInt8";
+        } else if (dynamic_cast<const Int16Variable *>(v)) {
+            return "Int16";
+        } else if (dynamic_cast<const UInt16Variable *>(v)) {
+            return "UInt16";
+        } else if (dynamic_cast<const UInt32Variable *>(v)) {
+            return "UInt32";
+        } else if (dynamic_cast<const Int64Variable *>(v)) {
+            return "Int64";
+        } else if (dynamic_cast<const UInt64Variable *>(v)) {
+            return "UInt64";
         } else if (dynamic_cast<const StringVariable *>(v)) {
             return "String";
         } else if (dynamic_cast<const BoolVariable *>(v)) {
@@ -93,7 +109,7 @@ std::string fmu_base::make_description() const {
     ss << "\t<ModelVariables>\n";
 
     const auto allVars = [&] {
-        auto allVars = collect(integers_, reals_, booleans_, strings_, binary_, clocks_);
+        auto allVars = collect_variables();
         std::sort(allVars.begin(), allVars.end(), [](const VariableBase *v1, const VariableBase *v2) {
             return v1->index() < v2->index();
         });
@@ -138,6 +154,11 @@ std::string fmu_base::make_description() const {
             if (with_start) {
                 ss << " start=\"" << i->get() << "\"";
             }
+            const auto min = i->getMin();
+            const auto max = i->getMax();
+            if (min && max) {
+                ss << " min=\"" << *min << "\" max=\"" << *max << "\"";
+            }
 
         } else if (auto r = dynamic_cast<const RealVariable *>(v)) {
 
@@ -148,6 +169,84 @@ std::string fmu_base::make_description() const {
             const auto max = r->getMax();
             if (min && max) {
                 ss << " min=\"" << *min << "\" max=\"" << *max << "\"";
+            }
+            if (auto u = r->getUnit(); u.has_value()) {
+                ss << " unit=\"" << xml_escape(*u) << "\"";
+            }
+
+        } else if (auto f32 = dynamic_cast<const Float32Variable *>(v)) {
+
+            if (with_start) {
+                ss << " start=\"" << f32->get() << "\"";
+            }
+            if (f32->getMin() && f32->getMax()) {
+                ss << " min=\"" << *f32->getMin() << "\" max=\"" << *f32->getMax() << "\"";
+            }
+            if (auto u = f32->getUnit(); u.has_value()) {
+                ss << " unit=\"" << xml_escape(*u) << "\"";
+            }
+
+        } else if (auto i8 = dynamic_cast<const Int8Variable *>(v)) {
+
+            if (with_start) {
+                ss << " start=\"" << static_cast<int>(i8->get()) << "\"";
+            }
+            if (i8->getMin() && i8->getMax()) {
+                ss << " min=\"" << static_cast<int>(*i8->getMin()) << "\" max=\"" << static_cast<int>(*i8->getMax()) << "\"";
+            }
+
+        } else if (auto u8 = dynamic_cast<const UInt8Variable *>(v)) {
+
+            if (with_start) {
+                ss << " start=\"" << static_cast<unsigned int>(u8->get()) << "\"";
+            }
+            if (u8->getMin() && u8->getMax()) {
+                ss << " min=\"" << static_cast<unsigned int>(*u8->getMin()) << "\" max=\"" << static_cast<unsigned int>(*u8->getMax()) << "\"";
+            }
+
+        } else if (auto i16 = dynamic_cast<const Int16Variable *>(v)) {
+
+            if (with_start) {
+                ss << " start=\"" << i16->get() << "\"";
+            }
+            if (i16->getMin() && i16->getMax()) {
+                ss << " min=\"" << *i16->getMin() << "\" max=\"" << *i16->getMax() << "\"";
+            }
+
+        } else if (auto u16 = dynamic_cast<const UInt16Variable *>(v)) {
+
+            if (with_start) {
+                ss << " start=\"" << u16->get() << "\"";
+            }
+            if (u16->getMin() && u16->getMax()) {
+                ss << " min=\"" << *u16->getMin() << "\" max=\"" << *u16->getMax() << "\"";
+            }
+
+        } else if (auto u32 = dynamic_cast<const UInt32Variable *>(v)) {
+
+            if (with_start) {
+                ss << " start=\"" << u32->get() << "\"";
+            }
+            if (u32->getMin() && u32->getMax()) {
+                ss << " min=\"" << *u32->getMin() << "\" max=\"" << *u32->getMax() << "\"";
+            }
+
+        } else if (auto i64 = dynamic_cast<const Int64Variable *>(v)) {
+
+            if (with_start) {
+                ss << " start=\"" << i64->get() << "\"";
+            }
+            if (i64->getMin() && i64->getMax()) {
+                ss << " min=\"" << *i64->getMin() << "\" max=\"" << *i64->getMax() << "\"";
+            }
+
+        } else if (auto u64 = dynamic_cast<const UInt64Variable *>(v)) {
+
+            if (with_start) {
+                ss << " start=\"" << u64->get() << "\"";
+            }
+            if (u64->getMin() && u64->getMax()) {
+                ss << " min=\"" << *u64->getMin() << "\" max=\"" << *u64->getMax() << "\"";
             }
 
         } else if (auto b = dynamic_cast<const BoolVariable *>(v)) {
@@ -180,22 +279,13 @@ std::string fmu_base::make_description() const {
         } else {
             ss << "/>\n";
         }
-
-        // if (!annotations.empty()) {
-        //     ss << "\t\t\t<Annotations>\n";
-        //     for (const auto &annotation: annotations) {
-        //         std::string indentedAnnotation = indent_multiline_string(annotation, 4);
-        //         ss << indentedAnnotation << "\n";
-        //     }
-        //     ss << "\t\t\t</Annotations>\n";
-        // }
     }
 
     ss << "\t</ModelVariables>\n\n";
 
     ss << "\t<ModelStructure>\n";
 
-    const auto unknowns = collect(integers_, reals_, booleans_, strings_, binary_, clocks_, [](auto &v) {
+    const auto unknowns = collect_variables([](auto &v) {
         return v.causality() == causality_t::OUTPUT;
     });
 
@@ -223,7 +313,7 @@ std::string fmu_base::make_description() const {
         }
     }
 
-    const auto initialUnknowns = collect(integers_, reals_, booleans_, strings_, binary_, clocks_, [](auto &v) {
+    const auto initialUnknowns = collect_variables([](auto &v) {
         return (v.causality() == causality_t::OUTPUT && (v.initial() == initial_t::APPROX || v.initial() == initial_t::CALCULATED)) || v.causality() == causality_t::CALCULATED_PARAMETER;
     });
     if (!initialUnknowns.empty()) {

@@ -764,26 +764,91 @@ fmi3Status fmi3SetBinary(fmi3Instance c,
     }
 }
 
-NOT_IMPLEMENTED_SETTER(UInt8);
-NOT_IMPLEMENTED_SETTER(UInt16);
-NOT_IMPLEMENTED_SETTER(UInt32);
-NOT_IMPLEMENTED_SETTER(UInt64);
+#define IMPLEMENT_GETTER(Type, CType, Method)                                                  \
+fmi3Status fmi3Get##Type(                                                                      \
+        fmi3Instance c,                                                                        \
+        const fmi3ValueReference vr[],                                                         \
+        size_t nvr,                                                                            \
+        CType value[],                                                                         \
+        size_t nValues) {                                                                      \
+    if (!c) return fmi3Error;                                                                  \
+    const auto component = static_cast<Fmi3Component *>(c);                                    \
+    try {                                                                                      \
+        if (nvr > 0 && (!vr || !value)) {                                                      \
+            component->logger->log(fmiError, "Null pointer passed to fmi3Get" #Type ".");      \
+            return fmi3Error;                                                                  \
+        }                                                                                      \
+        component->slave->get_##Method(vr, nvr, value);                                        \
+        return fmi3OK;                                                                         \
+    } catch (const fmu4cpp::fatal_error &ex) {                                                 \
+        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}                    \
+        component->state = Fmi3Component::State::Invalid;                                      \
+        return fmi3Fatal;                                                                      \
+    } catch (const std::exception &ex) {                                                       \
+        try { component->logger->log(fmiError, ex.what()); } catch (...) {}                    \
+        component->state = Fmi3Component::State::Terminated;                                   \
+        return fmi3Error;                                                                      \
+    } catch (...) {                                                                            \
+        try { component->logger->log(fmiError, "Unknown exception in fmi3Get" #Type "."); } catch (...) {} \
+        component->state = Fmi3Component::State::Terminated;                                   \
+        return fmi3Error;                                                                      \
+    }                                                                                          \
+}
 
-NOT_IMPLEMENTED_GETTER(UInt8);
-NOT_IMPLEMENTED_GETTER(UInt16);
-NOT_IMPLEMENTED_GETTER(UInt32);
-NOT_IMPLEMENTED_GETTER(UInt64);
+#define IMPLEMENT_SETTER(Type, CType, Method)                                                  \
+fmi3Status fmi3Set##Type(                                                                      \
+        fmi3Instance c,                                                                        \
+        const fmi3ValueReference vr[],                                                         \
+        size_t nvr,                                                                            \
+        const CType value[],                                                                   \
+        size_t nValues) {                                                                      \
+    if (!c) return fmi3Error;                                                                  \
+    const auto component = static_cast<Fmi3Component *>(c);                                    \
+    try {                                                                                      \
+        if (nvr > 0 && (!vr || !value)) {                                                      \
+            component->logger->log(fmiError, "Null pointer passed to fmi3Set" #Type ".");      \
+            return fmi3Error;                                                                  \
+        }                                                                                      \
+        component->slave->set_##Method(vr, nvr, value);                                        \
+        return fmi3OK;                                                                         \
+    } catch (const fmu4cpp::fatal_error &ex) {                                                 \
+        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}                    \
+        component->state = Fmi3Component::State::Invalid;                                      \
+        return fmi3Fatal;                                                                      \
+    } catch (const std::exception &ex) {                                                       \
+        try { component->logger->log(fmiError, ex.what()); } catch (...) {}                    \
+        component->state = Fmi3Component::State::Terminated;                                   \
+        return fmi3Error;                                                                      \
+    } catch (...) {                                                                            \
+        try { component->logger->log(fmiError, "Unknown exception in fmi3Set" #Type "."); } catch (...) {} \
+        component->state = Fmi3Component::State::Terminated;                                   \
+        return fmi3Error;                                                                      \
+    }                                                                                          \
+}
 
-NOT_IMPLEMENTED_SETTER(Int8);
-NOT_IMPLEMENTED_SETTER(Int16);
-NOT_IMPLEMENTED_SETTER(Int64);
+IMPLEMENT_GETTER(Float32, fmi3Float32, float32)
+IMPLEMENT_SETTER(Float32, fmi3Float32, float32)
 
-NOT_IMPLEMENTED_GETTER(Int8);
-NOT_IMPLEMENTED_GETTER(Int16);
-NOT_IMPLEMENTED_GETTER(Int64);
+IMPLEMENT_GETTER(Int8, fmi3Int8, int8)
+IMPLEMENT_SETTER(Int8, fmi3Int8, int8)
 
-NOT_IMPLEMENTED_SETTER(Float32);
-NOT_IMPLEMENTED_GETTER(Float32);
+IMPLEMENT_GETTER(UInt8, fmi3UInt8, uint8)
+IMPLEMENT_SETTER(UInt8, fmi3UInt8, uint8)
+
+IMPLEMENT_GETTER(Int16, fmi3Int16, int16)
+IMPLEMENT_SETTER(Int16, fmi3Int16, int16)
+
+IMPLEMENT_GETTER(UInt16, fmi3UInt16, uint16)
+IMPLEMENT_SETTER(UInt16, fmi3UInt16, uint16)
+
+IMPLEMENT_GETTER(UInt32, fmi3UInt32, uint32)
+IMPLEMENT_SETTER(UInt32, fmi3UInt32, uint32)
+
+IMPLEMENT_GETTER(Int64, fmi3Int64, int64)
+IMPLEMENT_SETTER(Int64, fmi3Int64, int64)
+
+IMPLEMENT_GETTER(UInt64, fmi3UInt64, uint64)
+IMPLEMENT_SETTER(UInt64, fmi3UInt64, uint64)
 
 fmi3Status fmi3SetDebugLogging(fmi3Instance c,
                                fmi3Boolean loggingOn,

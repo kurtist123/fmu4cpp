@@ -295,6 +295,110 @@ namespace fmu4cpp {
         std::optional<std::string> unit_;
     };
 
+    template<typename T, typename Derived>
+    class ScalarNumericVariable : public Variable<T, Derived> {
+    public:
+        ScalarNumericVariable(
+                const std::string &name,
+                unsigned int vr, size_t index, T *ptr, const std::function<void()> &onChange)
+            : Variable<T, Derived>(name, vr, index, ptr, onChange) {}
+
+        ScalarNumericVariable(
+                const std::string &name,
+                unsigned int vr, size_t index,
+                const std::function<T()> &getter,
+                const std::optional<std::function<void(T)>> &setter)
+            : Variable<T, Derived>(name, vr, index, getter, setter) {}
+
+        [[nodiscard]] std::optional<T> getMin() const {
+            return min_;
+        }
+
+        [[nodiscard]] std::optional<T> getMax() const {
+            return max_;
+        }
+
+        Derived &setMin(const std::optional<T> &min) {
+            min_ = min;
+            return *static_cast<Derived *>(this);
+        }
+
+        Derived &setMax(const std::optional<T> &max) {
+            max_ = max;
+            return *static_cast<Derived *>(this);
+        }
+
+    protected:
+        std::optional<T> min_;
+        std::optional<T> max_;
+    };
+
+    class Float32Variable final : public ScalarNumericVariable<float, Float32Variable> {
+    public:
+        Float32Variable(
+                const std::string &name,
+                unsigned int vr, size_t index, float *ptr, const std::function<void()> &onChange)
+            : ScalarNumericVariable(name, vr, index, ptr, onChange) {
+            this->variability_ = variability_t::CONTINUOUS;
+        }
+
+        Float32Variable(
+                const std::string &name,
+                unsigned int vr, size_t index,
+                const std::function<float()> &getter,
+                const std::optional<std::function<void(float)>> &setter)
+            : ScalarNumericVariable(name, vr, index, getter, setter) {
+            this->variability_ = variability_t::CONTINUOUS;
+        }
+
+        [[nodiscard]] std::optional<std::string> getUnit() const {
+            return unit_;
+        }
+
+        Float32Variable &setUnit(const std::optional<std::string> &unit) {
+            unit_ = unit;
+            return *this;
+        }
+
+    private:
+        std::optional<std::string> unit_;
+    };
+
+    class Int8Variable final : public ScalarNumericVariable<int8_t, Int8Variable> {
+    public:
+        using ScalarNumericVariable::ScalarNumericVariable;
+    };
+
+    class UInt8Variable final : public ScalarNumericVariable<uint8_t, UInt8Variable> {
+    public:
+        using ScalarNumericVariable::ScalarNumericVariable;
+    };
+
+    class Int16Variable final : public ScalarNumericVariable<int16_t, Int16Variable> {
+    public:
+        using ScalarNumericVariable::ScalarNumericVariable;
+    };
+
+    class UInt16Variable final : public ScalarNumericVariable<uint16_t, UInt16Variable> {
+    public:
+        using ScalarNumericVariable::ScalarNumericVariable;
+    };
+
+    class UInt32Variable final : public ScalarNumericVariable<uint32_t, UInt32Variable> {
+    public:
+        using ScalarNumericVariable::ScalarNumericVariable;
+    };
+
+    class Int64Variable final : public ScalarNumericVariable<int64_t, Int64Variable> {
+    public:
+        using ScalarNumericVariable::ScalarNumericVariable;
+    };
+
+    class UInt64Variable final : public ScalarNumericVariable<uint64_t, UInt64Variable> {
+    public:
+        using ScalarNumericVariable::ScalarNumericVariable;
+    };
+
     class BoolVariable final : public Variable<bool, BoolVariable> {
 
     public:

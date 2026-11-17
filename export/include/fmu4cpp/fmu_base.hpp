@@ -115,6 +115,14 @@ namespace fmu4cpp {
         [[nodiscard]] std::optional<StringVariable> get_string_variable(const std::string &name) const;
         [[nodiscard]] std::optional<BinaryVariable> get_binary_variable(const std::string &name) const;
         [[nodiscard]] std::optional<ClockVariable> get_clock_variable(const std::string &name) const;
+        [[nodiscard]] std::optional<Float32Variable> get_float32_variable(const std::string &name) const;
+        [[nodiscard]] std::optional<Int8Variable> get_int8_variable(const std::string &name) const;
+        [[nodiscard]] std::optional<UInt8Variable> get_uint8_variable(const std::string &name) const;
+        [[nodiscard]] std::optional<Int16Variable> get_int16_variable(const std::string &name) const;
+        [[nodiscard]] std::optional<UInt16Variable> get_uint16_variable(const std::string &name) const;
+        [[nodiscard]] std::optional<UInt32Variable> get_uint32_variable(const std::string &name) const;
+        [[nodiscard]] std::optional<Int64Variable> get_int64_variable(const std::string &name) const;
+        [[nodiscard]] std::optional<UInt64Variable> get_uint64_variable(const std::string &name) const;
         [[nodiscard]] const std::vector<ClockVariable> &get_clocks() const { return clocks_; }
 
         void enter_initialisation_mode(double start, std::optional<double> stop, std::optional<double> tolerance);
@@ -137,6 +145,15 @@ namespace fmu4cpp {
         void get_integer(const unsigned int vr[], size_t nvr, int value[]) const;
         void get_real(const unsigned int vr[], size_t nvr, double value[]) const;
 
+        void get_float32(const unsigned int vr[], size_t nvr, float value[]) const;
+        void get_int8(const unsigned int vr[], size_t nvr, int8_t value[]) const;
+        void get_uint8(const unsigned int vr[], size_t nvr, uint8_t value[]) const;
+        void get_int16(const unsigned int vr[], size_t nvr, int16_t value[]) const;
+        void get_uint16(const unsigned int vr[], size_t nvr, uint16_t value[]) const;
+        void get_uint32(const unsigned int vr[], size_t nvr, uint32_t value[]) const;
+        void get_int64(const unsigned int vr[], size_t nvr, int64_t value[]) const;
+        void get_uint64(const unsigned int vr[], size_t nvr, uint64_t value[]) const;
+
         //fmi2
         void get_boolean(const unsigned int vr[], size_t nvr, int value[]) const;
 
@@ -148,6 +165,15 @@ namespace fmu4cpp {
 
         void set_integer(const unsigned int vr[], size_t nvr, const int value[]);
         void set_real(const unsigned int vr[], size_t nvr, const double value[]);
+
+        void set_float32(const unsigned int vr[], size_t nvr, const float value[]);
+        void set_int8(const unsigned int vr[], size_t nvr, const int8_t value[]);
+        void set_uint8(const unsigned int vr[], size_t nvr, const uint8_t value[]);
+        void set_int16(const unsigned int vr[], size_t nvr, const int16_t value[]);
+        void set_uint16(const unsigned int vr[], size_t nvr, const uint16_t value[]);
+        void set_uint32(const unsigned int vr[], size_t nvr, const uint32_t value[]);
+        void set_int64(const unsigned int vr[], size_t nvr, const int64_t value[]);
+        void set_uint64(const unsigned int vr[], size_t nvr, const uint64_t value[]);
 
         //fmi2
         void set_boolean(const unsigned int vr[], size_t nvr, const int value[]);
@@ -171,6 +197,8 @@ namespace fmu4cpp {
         virtual void deserializeFMUState(const std::vector<uint8_t> &in, void **out);
 
         [[nodiscard]] std::vector<unsigned int> get_value_refs() const;
+        [[nodiscard]] std::vector<const VariableBase *> collect_variables(
+                const std::function<bool(const VariableBase &)> &predicate = [](const VariableBase &) { return true; }) const;
 
         virtual ~fmu_base() = default;
 
@@ -199,6 +227,46 @@ namespace fmu4cpp {
         BinaryVariable &register_binary(const std::string &name,
                                         const std::function<std::vector<uint8_t>()> &getter,
                                         const std::optional<std::function<void(std::vector<uint8_t>)>> &setter = std::nullopt);
+
+        Float32Variable &register_float32(const std::string &name, float *ptr, const std::function<void()> &onChange = {});
+        Float32Variable &register_float32(const std::string &name,
+                                          const std::function<float()> &getter,
+                                          const std::optional<std::function<void(float)>> &setter = std::nullopt);
+
+        Int8Variable &register_int8(const std::string &name, int8_t *ptr, const std::function<void()> &onChange = {});
+        Int8Variable &register_int8(const std::string &name,
+                                    const std::function<int8_t()> &getter,
+                                    const std::optional<std::function<void(int8_t)>> &setter = std::nullopt);
+
+        UInt8Variable &register_uint8(const std::string &name, uint8_t *ptr, const std::function<void()> &onChange = {});
+        UInt8Variable &register_uint8(const std::string &name,
+                                      const std::function<uint8_t()> &getter,
+                                      const std::optional<std::function<void(uint8_t)>> &setter = std::nullopt);
+
+        Int16Variable &register_int16(const std::string &name, int16_t *ptr, const std::function<void()> &onChange = {});
+        Int16Variable &register_int16(const std::string &name,
+                                      const std::function<int16_t()> &getter,
+                                      const std::optional<std::function<void(int16_t)>> &setter = std::nullopt);
+
+        UInt16Variable &register_uint16(const std::string &name, uint16_t *ptr, const std::function<void()> &onChange = {});
+        UInt16Variable &register_uint16(const std::string &name,
+                                        const std::function<uint16_t()> &getter,
+                                        const std::optional<std::function<void(uint16_t)>> &setter = std::nullopt);
+
+        UInt32Variable &register_uint32(const std::string &name, uint32_t *ptr, const std::function<void()> &onChange = {});
+        UInt32Variable &register_uint32(const std::string &name,
+                                        const std::function<uint32_t()> &getter,
+                                        const std::optional<std::function<void(uint32_t)>> &setter = std::nullopt);
+
+        Int64Variable &register_int64(const std::string &name, int64_t *ptr, const std::function<void()> &onChange = {});
+        Int64Variable &register_int64(const std::string &name,
+                                      const std::function<int64_t()> &getter,
+                                      const std::optional<std::function<void(int64_t)>> &setter = std::nullopt);
+
+        UInt64Variable &register_uint64(const std::string &name, uint64_t *ptr, const std::function<void()> &onChange = {});
+        UInt64Variable &register_uint64(const std::string &name,
+                                        const std::function<uint64_t()> &getter,
+                                        const std::optional<std::function<void(uint64_t)>> &setter = std::nullopt);
 
         ClockVariable &register_clock(std::string name, value_ref vr, causality_t causality);
         ClockVariable &register_clock(std::string name, causality_t causality);
@@ -248,6 +316,30 @@ namespace fmu4cpp {
         std::vector<BinaryVariable> binary_;
         std::vector<std::vector<uint8_t>> binaryBuffer_;
         std::unordered_map<unsigned int, size_t> vrToBinaryIndices_;
+
+        std::vector<Float32Variable> float32s_;
+        std::unordered_map<unsigned int, size_t> vrToFloat32Indices_;
+
+        std::vector<Int8Variable> int8s_;
+        std::unordered_map<unsigned int, size_t> vrToInt8Indices_;
+
+        std::vector<UInt8Variable> uint8s_;
+        std::unordered_map<unsigned int, size_t> vrToUInt8Indices_;
+
+        std::vector<Int16Variable> int16s_;
+        std::unordered_map<unsigned int, size_t> vrToInt16Indices_;
+
+        std::vector<UInt16Variable> uint16s_;
+        std::unordered_map<unsigned int, size_t> vrToUInt16Indices_;
+
+        std::vector<UInt32Variable> uint32s_;
+        std::unordered_map<unsigned int, size_t> vrToUInt32Indices_;
+
+        std::vector<Int64Variable> int64s_;
+        std::unordered_map<unsigned int, size_t> vrToInt64Indices_;
+
+        std::vector<UInt64Variable> uint64s_;
+        std::unordered_map<unsigned int, size_t> vrToUInt64Indices_;
 
         std::vector<ClockVariable> clocks_;
         std::unordered_map<unsigned int, size_t> vrToClockIndices_;

@@ -12,8 +12,11 @@ using namespace fmu4cpp;
 
 std::string fmu_base::make_description() const {
 
-    if (!binary_.empty() || !clocks_.empty()) {
-        throw std::runtime_error("FMI 2.0 does not support Clock or Binary variables. Use FMI 3.0 instead.");
+    if (!binary_.empty() || !clocks_.empty() ||
+        !float32s_.empty() || !int8s_.empty() || !uint8s_.empty() ||
+        !int16s_.empty() || !uint16s_.empty() || !uint32s_.empty() ||
+        !int64s_.empty() || !uint64s_.empty()) {
+        throw std::runtime_error("FMI 2.0 does not support Clock, Binary, or fixed-width integer/float variables. Use FMI 3.0 instead.");
     }
 
     const model_info m = get_model_info();

@@ -22,6 +22,36 @@ private:
     std::vector<uint8_t> bin_{};
 };
 
+class Float32Model : public fmu4cpp::fmu_base {
+public:
+    FMU4CPP_CTOR(Float32Model) {
+        register_float32("f32", &f32_).setCausality(fmu4cpp::causality_t::INPUT);
+    }
+    bool do_step(double dt) override { return true; }
+private:
+    float f32_{0.0f};
+};
+
+class Int8Model : public fmu4cpp::fmu_base {
+public:
+    FMU4CPP_CTOR(Int8Model) {
+        register_int8("i8", &i8_).setCausality(fmu4cpp::causality_t::INPUT);
+    }
+    bool do_step(double dt) override { return true; }
+private:
+    int8_t i8_{0};
+};
+
+class UInt64Model : public fmu4cpp::fmu_base {
+public:
+    FMU4CPP_CTOR(UInt64Model) {
+        register_uint64("u64", &u64_).setCausality(fmu4cpp::causality_t::INPUT);
+    }
+    bool do_step(double dt) override { return true; }
+private:
+    uint64_t u64_{0};
+};
+
 class NormalModel : public fmu4cpp::fmu_base {
 public:
     FMU4CPP_CTOR(NormalModel) {
@@ -58,6 +88,21 @@ TEST_CASE("fmi2_rejection_tests") {
 
     SECTION("Reject Binary variable in FMI2") {
         BinaryModel model({});
+        REQUIRE_THROWS_AS(model.make_description(), std::runtime_error);
+    }
+
+    SECTION("Reject Float32 variable in FMI2") {
+        Float32Model model({});
+        REQUIRE_THROWS_AS(model.make_description(), std::runtime_error);
+    }
+
+    SECTION("Reject Int8 variable in FMI2") {
+        Int8Model model({});
+        REQUIRE_THROWS_AS(model.make_description(), std::runtime_error);
+    }
+
+    SECTION("Reject UInt64 variable in FMI2") {
+        UInt64Model model({});
         REQUIRE_THROWS_AS(model.make_description(), std::runtime_error);
     }
 

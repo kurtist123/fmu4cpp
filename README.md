@@ -125,6 +125,7 @@ FMU4cpp provides production-ready FMI 3.0 Co-Simulation export capabilities:
 - **Triggered Clocks**: Register triggered input and output clocks via `register_clock(...)`, inspect activation states via `fmi3GetClock`, and trigger inputs via `fmi3SetClock`.
 - **Clocked Variables**: Associate discrete scalar or binary variables with registered clocks using `.setClocks(...)`.
 - **Binary Variables**: Support arbitrary binary byte payloads (`std::vector<uint8_t>`) with MIME type and `maxSize` metadata.
+- **Fixed-Width Numeric Types**: Complete support for all FMI 3.0 sized scalar numeric types: `Float32`, `Int8`, `UInt8`, `Int16`, `UInt16`, `UInt32`, `Int64`, and `UInt64` (in addition to `Float64` and `Int32`), with C ABI `fmi3Get...`/`fmi3Set...`, pointer & lambda registration overloads, and strict FMI 2.0 rejection.
 - **Dual-Target Export**: Seamlessly generate both FMI 2.0 and FMI 3.0 FMU packages simultaneously using `generateFMU(MyModel FMI_VERSIONS fmi2 fmi3 ...)`.
 
 ### Requirements
