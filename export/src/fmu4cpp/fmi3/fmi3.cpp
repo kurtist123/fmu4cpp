@@ -105,38 +105,38 @@ namespace {
 
 #define FMU_TYPE(type) fmi3##type
 
-#define NOT_IMPLEMENTED_GETTER(type)                                                           \
-    fmi3Status fmi3Get##type(                                                                  \
-            fmi3Instance c,                                                                    \
-            const fmi3ValueReference vr[],                                                     \
-            size_t nValueReferences,                                                           \
-            FMU_TYPE(type) values[],                                                           \
-            size_t nValues) {                                                                  \
-        if (!c) return fmi3Error;                                                              \
-        try {                                                                                  \
-            const auto component = static_cast<Fmi3Component *>(c);                            \
+#define NOT_IMPLEMENTED_GETTER(type)                                                               \
+    fmi3Status fmi3Get##type(                                                                      \
+            fmi3Instance c,                                                                        \
+            const fmi3ValueReference vr[],                                                         \
+            size_t nValueReferences,                                                               \
+            FMU_TYPE(type) values[],                                                               \
+            size_t nValues) {                                                                      \
+        if (!c) return fmi3Error;                                                                  \
+        try {                                                                                      \
+            const auto component = static_cast<Fmi3Component *>(c);                                \
             component->logger->log(fmiError, std::string("Unsupported function fmi3Get") + #type); \
-            return fmi3Error;                                                                  \
-        } catch (...) {                                                                        \
-            return fmi3Error;                                                                  \
-        }                                                                                      \
+            return fmi3Error;                                                                      \
+        } catch (...) {                                                                            \
+            return fmi3Error;                                                                      \
+        }                                                                                          \
     }
 
-#define NOT_IMPLEMENTED_SETTER(type)                                                           \
-    fmi3Status fmi3Set##type(                                                                  \
-            fmi3Instance c,                                                                    \
-            const fmi3ValueReference vr[],                                                     \
-            size_t nValueReferences,                                                           \
-            const FMU_TYPE(type) values[],                                                     \
-            size_t nValues) {                                                                  \
-        if (!c) return fmi3Error;                                                              \
-        try {                                                                                  \
-            const auto component = static_cast<Fmi3Component *>(c);                            \
+#define NOT_IMPLEMENTED_SETTER(type)                                                               \
+    fmi3Status fmi3Set##type(                                                                      \
+            fmi3Instance c,                                                                        \
+            const fmi3ValueReference vr[],                                                         \
+            size_t nValueReferences,                                                               \
+            const FMU_TYPE(type) values[],                                                         \
+            size_t nValues) {                                                                      \
+        if (!c) return fmi3Error;                                                                  \
+        try {                                                                                      \
+            const auto component = static_cast<Fmi3Component *>(c);                                \
             component->logger->log(fmiError, std::string("Unsupported function fmi3Set") + #type); \
-            return fmi3Error;                                                                  \
-        } catch (...) {                                                                        \
-            return fmi3Error;                                                                  \
-        }                                                                                      \
+            return fmi3Error;                                                                      \
+        } catch (...) {                                                                            \
+            return fmi3Error;                                                                      \
+        }                                                                                          \
     }
 
 }// namespace
@@ -277,15 +277,21 @@ fmi3Status fmi3EnterEventMode(fmi3Instance instance) {
         component->slave->on_enter_event_mode();
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3EnterEventMode."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3EnterEventMode.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -312,15 +318,21 @@ fmi3Status fmi3EnterInitializationMode(fmi3Instance c,
         component->state = Fmi3Component::State::InitializationMode;
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3EnterInitializationMode."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3EnterInitializationMode.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -343,15 +355,21 @@ fmi3Status fmi3ExitInitializationMode(fmi3Instance c) {
         }
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3ExitInitializationMode."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3ExitInitializationMode.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -365,15 +383,21 @@ fmi3Status fmi3Terminate(fmi3Instance c) {
         component->state = Fmi3Component::State::Terminated;
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3Terminate."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3Terminate.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -414,15 +438,21 @@ fmi3Status fmi3DoStep(fmi3Instance c,
         component->logger->log(fmiWarning, "Step returned false!");
         return fmi3Discard;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3DoStep."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3DoStep.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -448,15 +478,21 @@ fmi3Status fmi3Reset(fmi3Instance c) {
         component->state = Fmi3Component::State::Instantiated;
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3Reset."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3Reset.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -478,15 +514,21 @@ fmi3Status fmi3GetInt32(
         component->slave->get_integer(vr, nvr, value);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3GetInt32."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3GetInt32.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -508,15 +550,21 @@ fmi3Status fmi3GetFloat64(
         component->slave->get_real(vr, nvr, value);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3GetFloat64."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3GetFloat64.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -538,15 +586,21 @@ fmi3Status fmi3GetBoolean(
         component->slave->get_boolean(vr, nvr, value);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3GetBoolean."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3GetBoolean.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -568,15 +622,21 @@ fmi3Status fmi3GetString(
         component->slave->get_string(vr, nvr, value);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3GetString."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3GetString.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -598,15 +658,21 @@ fmi3Status fmi3SetInt32(
         component->slave->set_integer(vr, nvr, value);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3SetInt32."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3SetInt32.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -628,15 +694,21 @@ fmi3Status fmi3SetFloat64(
         component->slave->set_real(vr, nvr, value);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3SetFloat64."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3SetFloat64.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -658,15 +730,21 @@ fmi3Status fmi3SetBoolean(
         component->slave->set_boolean(vr, nvr, value);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3SetBoolean."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3SetBoolean.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -688,15 +766,21 @@ fmi3Status fmi3SetString(
         component->slave->set_string(vr, nvr, value);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3SetString."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3SetString.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -718,14 +802,20 @@ fmi3Status fmi3GetBinary(fmi3Instance c,
         component->slave->get_binary(vr, nvr, valueSizes, values);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3GetBinary."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3GetBinary.");
+        } catch (...) {}
         return fmi3Error;
     }
 }
@@ -752,79 +842,97 @@ fmi3Status fmi3SetBinary(fmi3Instance c,
         component->slave->set_binary(vr, nvr, valueSizes, values);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3SetBinary."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3SetBinary.");
+        } catch (...) {}
         return fmi3Error;
     }
 }
 
-#define IMPLEMENT_GETTER(Type, CType, Method)                                                  \
-fmi3Status fmi3Get##Type(                                                                      \
-        fmi3Instance c,                                                                        \
-        const fmi3ValueReference vr[],                                                         \
-        size_t nvr,                                                                            \
-        CType value[],                                                                         \
-        size_t nValues) {                                                                      \
-    if (!c) return fmi3Error;                                                                  \
-    const auto component = static_cast<Fmi3Component *>(c);                                    \
-    try {                                                                                      \
-        if (nvr > 0 && (!vr || !value)) {                                                      \
-            component->logger->log(fmiError, "Null pointer passed to fmi3Get" #Type ".");      \
-            return fmi3Error;                                                                  \
-        }                                                                                      \
-        component->slave->get_##Method(vr, nvr, value);                                        \
-        return fmi3OK;                                                                         \
-    } catch (const fmu4cpp::fatal_error &ex) {                                                 \
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}                    \
-        component->state = Fmi3Component::State::Invalid;                                      \
-        return fmi3Fatal;                                                                      \
-    } catch (const std::exception &ex) {                                                       \
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}                    \
-        component->state = Fmi3Component::State::Terminated;                                   \
-        return fmi3Error;                                                                      \
-    } catch (...) {                                                                            \
-        try { component->logger->log(fmiError, "Unknown exception in fmi3Get" #Type "."); } catch (...) {} \
-        component->state = Fmi3Component::State::Terminated;                                   \
-        return fmi3Error;                                                                      \
-    }                                                                                          \
-}
+#define IMPLEMENT_GETTER(Type, CType, Method)                                                 \
+    fmi3Status fmi3Get##Type(                                                                 \
+            fmi3Instance c,                                                                   \
+            const fmi3ValueReference vr[],                                                    \
+            size_t nvr,                                                                       \
+            CType value[],                                                                    \
+            size_t nValues) {                                                                 \
+        if (!c) return fmi3Error;                                                             \
+        const auto component = static_cast<Fmi3Component *>(c);                               \
+        try {                                                                                 \
+            if (nvr > 0 && (!vr || !value)) {                                                 \
+                component->logger->log(fmiError, "Null pointer passed to fmi3Get" #Type "."); \
+                return fmi3Error;                                                             \
+            }                                                                                 \
+            component->slave->get_##Method(vr, nvr, value);                                   \
+            return fmi3OK;                                                                    \
+        } catch (const fmu4cpp::fatal_error &ex) {                                            \
+            try {                                                                             \
+                component->logger->log(fmiFatal, ex.what());                                  \
+            } catch (...) {}                                                                  \
+            component->state = Fmi3Component::State::Invalid;                                 \
+            return fmi3Fatal;                                                                 \
+        } catch (const std::exception &ex) {                                                  \
+            try {                                                                             \
+                component->logger->log(fmiError, ex.what());                                  \
+            } catch (...) {}                                                                  \
+            component->state = Fmi3Component::State::Terminated;                              \
+            return fmi3Error;                                                                 \
+        } catch (...) {                                                                       \
+            try {                                                                             \
+                component->logger->log(fmiError, "Unknown exception in fmi3Get" #Type ".");   \
+            } catch (...) {}                                                                  \
+            component->state = Fmi3Component::State::Terminated;                              \
+            return fmi3Error;                                                                 \
+        }                                                                                     \
+    }
 
-#define IMPLEMENT_SETTER(Type, CType, Method)                                                  \
-fmi3Status fmi3Set##Type(                                                                      \
-        fmi3Instance c,                                                                        \
-        const fmi3ValueReference vr[],                                                         \
-        size_t nvr,                                                                            \
-        const CType value[],                                                                   \
-        size_t nValues) {                                                                      \
-    if (!c) return fmi3Error;                                                                  \
-    const auto component = static_cast<Fmi3Component *>(c);                                    \
-    try {                                                                                      \
-        if (nvr > 0 && (!vr || !value)) {                                                      \
-            component->logger->log(fmiError, "Null pointer passed to fmi3Set" #Type ".");      \
-            return fmi3Error;                                                                  \
-        }                                                                                      \
-        component->slave->set_##Method(vr, nvr, value);                                        \
-        return fmi3OK;                                                                         \
-    } catch (const fmu4cpp::fatal_error &ex) {                                                 \
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}                    \
-        component->state = Fmi3Component::State::Invalid;                                      \
-        return fmi3Fatal;                                                                      \
-    } catch (const std::exception &ex) {                                                       \
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}                    \
-        component->state = Fmi3Component::State::Terminated;                                   \
-        return fmi3Error;                                                                      \
-    } catch (...) {                                                                            \
-        try { component->logger->log(fmiError, "Unknown exception in fmi3Set" #Type "."); } catch (...) {} \
-        component->state = Fmi3Component::State::Terminated;                                   \
-        return fmi3Error;                                                                      \
-    }                                                                                          \
-}
+#define IMPLEMENT_SETTER(Type, CType, Method)                                                 \
+    fmi3Status fmi3Set##Type(                                                                 \
+            fmi3Instance c,                                                                   \
+            const fmi3ValueReference vr[],                                                    \
+            size_t nvr,                                                                       \
+            const CType value[],                                                              \
+            size_t nValues) {                                                                 \
+        if (!c) return fmi3Error;                                                             \
+        const auto component = static_cast<Fmi3Component *>(c);                               \
+        try {                                                                                 \
+            if (nvr > 0 && (!vr || !value)) {                                                 \
+                component->logger->log(fmiError, "Null pointer passed to fmi3Set" #Type "."); \
+                return fmi3Error;                                                             \
+            }                                                                                 \
+            component->slave->set_##Method(vr, nvr, value);                                   \
+            return fmi3OK;                                                                    \
+        } catch (const fmu4cpp::fatal_error &ex) {                                            \
+            try {                                                                             \
+                component->logger->log(fmiFatal, ex.what());                                  \
+            } catch (...) {}                                                                  \
+            component->state = Fmi3Component::State::Invalid;                                 \
+            return fmi3Fatal;                                                                 \
+        } catch (const std::exception &ex) {                                                  \
+            try {                                                                             \
+                component->logger->log(fmiError, ex.what());                                  \
+            } catch (...) {}                                                                  \
+            component->state = Fmi3Component::State::Terminated;                              \
+            return fmi3Error;                                                                 \
+        } catch (...) {                                                                       \
+            try {                                                                             \
+                component->logger->log(fmiError, "Unknown exception in fmi3Set" #Type ".");   \
+            } catch (...) {}                                                                  \
+            component->state = Fmi3Component::State::Terminated;                              \
+            return fmi3Error;                                                                 \
+        }                                                                                     \
+    }
 
 IMPLEMENT_GETTER(Float32, fmi3Float32, float32)
 IMPLEMENT_SETTER(Float32, fmi3Float32, float32)
@@ -898,15 +1006,21 @@ fmi3Status fmi3GetFMUState(fmi3Instance c, fmi3FMUState *state) {
         *state = s;
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3GetFMUState."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3GetFMUState.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -919,15 +1033,21 @@ fmi3Status fmi3SetFMUState(fmi3Instance c, fmi3FMUState state) {
         component->slave->setFmuState(state);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3SetFMUState."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3SetFMUState.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -943,15 +1063,21 @@ fmi3Status fmi3FreeFMUState(fmi3Instance c, fmi3FMUState *state) {
         component->slave->freeFmuState(state);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3FreeFMUState."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3FreeFMUState.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -968,15 +1094,21 @@ fmi3Status fmi3SerializedFMUStateSize(fmi3Instance c, fmi3FMUState state, size_t
         component->slave->serializedFMUStateSize(state, *size);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3SerializedFMUStateSize."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3SerializedFMUStateSize.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -995,15 +1127,21 @@ fmi3Status fmi3SerializeFMUState(fmi3Instance c, fmi3FMUState state, fmi3Byte da
         std::memcpy(data, serializedState.data(), size);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3SerializeFMUState."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3SerializeFMUState.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -1021,15 +1159,21 @@ fmi3Status fmi3DeserializeFMUState(fmi3Instance c, const fmi3Byte data[], size_t
         component->slave->deserializeFMUState(serializedState, state);
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3DeserializeFMUState."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3DeserializeFMUState.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -1042,9 +1186,11 @@ fmi3Status fmi3GetClock(fmi3Instance instance,
     if (!instance) return fmi3Error;
     const auto component = static_cast<Fmi3Component *>(instance);
     try {
+        // StepMode is allowed because many masters use it for performance, but this does not comply with the strict FMI 3.0 standard.
         if (component->state != Fmi3Component::State::EventMode &&
-            component->state != Fmi3Component::State::InitializationMode) {
-            component->logger->log(fmiError, "fmi3GetClock is only allowed in EventMode and InitializationMode.");
+            component->state != Fmi3Component::State::InitializationMode &&
+            component->state != Fmi3Component::State::StepMode) {
+            component->logger->log(fmiError, "fmi3GetClock is only allowed in EventMode, InitializationMode, and StepMode.");
             return fmi3Error;
         }
         if (nValueReferences > 0 && (!valueReferences || !values)) {
@@ -1056,14 +1202,20 @@ fmi3Status fmi3GetClock(fmi3Instance instance,
         }
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3GetClock."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3GetClock.");
+        } catch (...) {}
         return fmi3Error;
     }
 }
@@ -1075,9 +1227,11 @@ fmi3Status fmi3SetClock(fmi3Instance instance,
     if (!instance) return fmi3Error;
     const auto component = static_cast<Fmi3Component *>(instance);
     try {
+        // StepMode is allowed because many masters use it for performance, but this does not comply with the strict FMI 3.0 standard.
         if (component->state != Fmi3Component::State::EventMode &&
-            component->state != Fmi3Component::State::InitializationMode) {
-            component->logger->log(fmiError, "fmi3SetClock is only allowed in EventMode and InitializationMode.");
+            component->state != Fmi3Component::State::InitializationMode &&
+            component->state != Fmi3Component::State::StepMode) {
+            component->logger->log(fmiError, "fmi3SetClock is only allowed in EventMode, InitializationMode, and StepMode.");
             return fmi3Error;
         }
         if (nValueReferences > 0 && (!valueReferences || !values)) {
@@ -1089,14 +1243,20 @@ fmi3Status fmi3SetClock(fmi3Instance instance,
         }
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3SetClock."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3SetClock.");
+        } catch (...) {}
         return fmi3Error;
     }
 }
@@ -1256,15 +1416,21 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
         *nextEventTime = 0.0;
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3UpdateDiscreteStates."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3UpdateDiscreteStates.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -1353,15 +1519,21 @@ fmi3Status fmi3EnterStepMode(fmi3Instance instance) {
         component->state = Fmi3Component::State::StepMode;
         return fmi3OK;
     } catch (const fmu4cpp::fatal_error &ex) {
-        try { component->logger->log(fmiFatal, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiFatal, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Invalid;
         return fmi3Fatal;
     } catch (const std::exception &ex) {
-        try { component->logger->log(fmiError, ex.what()); } catch (...) {}
+        try {
+            component->logger->log(fmiError, ex.what());
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     } catch (...) {
-        try { component->logger->log(fmiError, "Unknown exception in fmi3EnterStepMode."); } catch (...) {}
+        try {
+            component->logger->log(fmiError, "Unknown exception in fmi3EnterStepMode.");
+        } catch (...) {}
         component->state = Fmi3Component::State::Terminated;
         return fmi3Error;
     }
@@ -1383,5 +1555,4 @@ void fmi3FreeInstance(fmi3Instance c) {
         } catch (...) {}
     }
 }
-
 }
