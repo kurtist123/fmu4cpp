@@ -182,13 +182,16 @@ bool fmu_base::step(double currentTime, double dt) {
         return false;
     }
 
-    constexpr double TIME_TOLERANCE = 1e-9;
-    if (std::abs(currentTime - time_) > TIME_TOLERANCE) {
-        throw std::runtime_error("Current time does not match the internal time (within tolerance)");
+    const double timeTolerance = std::max(1e-6, std::abs(currentTime) * 1e-9);
+    if (std::abs(currentTime - time_) > timeTolerance) {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "Current time does not match internal time: currentTime=%.15f, time_=%.15f, diff=%.15e, tol=%.15e",
+                 currentTime, time_, std::abs(currentTime - time_), timeTolerance);
+        throw std::runtime_error(buf);
     }
 
     if (do_step(dt)) {
-        time_ += dt;
+        time_ = currentTime + dt;
 
         return true;
     }
@@ -462,8 +465,8 @@ void fmu_base::set_binary(const unsigned int vr[], size_t nvr, const size_t valu
         const size_t len = valueSizes[i];
         if (var.max_size().has_value() && len > *var.max_size()) {
             throw std::invalid_argument("Binary variable size " + std::to_string(len) +
-                                       " exceeds maxSize " + std::to_string(*var.max_size()) +
-                                       " for variable " + var.name());
+                                        " exceeds maxSize " + std::to_string(*var.max_size()) +
+                                        " for variable " + var.name());
         }
         const uint8_t *ptr = value ? value[i] : nullptr;
         if (len == 0) {
