@@ -76,7 +76,7 @@ TEST_CASE("BouncingBall_test") {
     REQUIRE(state == nullptr);
 
     REQUIRE(fmi2GetReal(c, &heightVr, 1, &height) == fmi2OK);
-    CHECK(height < startHeight );
+    CHECK(height < startHeight);
     fmi2Reset(c);
     REQUIRE(fmi2GetReal(c, &heightVr, 1, &height) == fmi2OK);
     CHECK(height == Catch::Approx(startHeight));

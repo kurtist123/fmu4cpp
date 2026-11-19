@@ -49,7 +49,7 @@ namespace {
         static const char hex[] = "0123456789ABCDEF";
         std::string out;
         out.reserve(in.size() * 2);
-        for (unsigned char c : in) {
+        for (unsigned char c: in) {
             out.push_back(hex[c >> 4]);
             out.push_back(hex[c & 0x0F]);
         }

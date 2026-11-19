@@ -1,5 +1,5 @@
-#include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <fmu4cpp/fmu_base.hpp>
 #include <fmu4cpp/fmu_variable.hpp>
@@ -10,69 +10,69 @@
 
 namespace {
 
-class TestModel : public fmu4cpp::fmu_base {
-public:
-    bool enter_event_called{false};
-    bool exit_event_called{false};
-    bool update_discrete_called{false};
+    class TestModel : public fmu4cpp::fmu_base {
+    public:
+        bool enter_event_called{false};
+        bool exit_event_called{false};
+        bool update_discrete_called{false};
 
-    int intVal_{42};
-    double realVal_{3.14};
-    bool boolVal_{true};
-    std::string str1_{"first_string_value"};
-    std::string str2_{"second_string_value_which_is_longer_to_force_allocation"};
-    fmu4cpp::BinaryType bin1_{0x01, 0x02, 0x03, 0x04};
-    fmu4cpp::BinaryType bin2_{0xAA, 0xBB, 0xCC, 0xDD, 0xEE};
-    fmu4cpp::BinaryType binEmpty_{};
+        int intVal_{42};
+        double realVal_{3.14};
+        bool boolVal_{true};
+        std::string str1_{"first_string_value"};
+        std::string str2_{"second_string_value_which_is_longer_to_force_allocation"};
+        fmu4cpp::BinaryType bin1_{0x01, 0x02, 0x03, 0x04};
+        fmu4cpp::BinaryType bin2_{0xAA, 0xBB, 0xCC, 0xDD, 0xEE};
+        fmu4cpp::BinaryType binEmpty_{};
 
-    FMU4CPP_CTOR(TestModel) {
-        register_integer("intVar", &intVal_).setCausality(fmu4cpp::causality_t::INPUT);
-        register_real("realVar", &realVal_)
-            .setCausality(fmu4cpp::causality_t::OUTPUT)
-            .setAssociatedClock(11);
-        register_boolean("boolVar", &boolVal_).setCausality(fmu4cpp::causality_t::LOCAL);
-        register_string("strVar1", &str1_).setCausality(fmu4cpp::causality_t::OUTPUT);
-        register_string("strVar2", &str2_).setCausality(fmu4cpp::causality_t::OUTPUT);
-        register_binary("binVar1", &bin1_)
-            .setCausality(fmu4cpp::causality_t::OUTPUT)
-            .setAssociatedClock(11)
-            .setMimeType("application/octet-stream")
-            .setMaxSize(64);
-        register_binary("binVar2", &bin2_).setCausality(fmu4cpp::causality_t::OUTPUT);
-        register_binary("binEmpty", &binEmpty_).setCausality(fmu4cpp::causality_t::OUTPUT);
+        FMU4CPP_CTOR(TestModel) {
+            register_integer("intVar", &intVal_).setCausality(fmu4cpp::causality_t::INPUT);
+            register_real("realVar", &realVal_)
+                    .setCausality(fmu4cpp::causality_t::OUTPUT)
+                    .setAssociatedClock(11);
+            register_boolean("boolVar", &boolVal_).setCausality(fmu4cpp::causality_t::LOCAL);
+            register_string("strVar1", &str1_).setCausality(fmu4cpp::causality_t::OUTPUT);
+            register_string("strVar2", &str2_).setCausality(fmu4cpp::causality_t::OUTPUT);
+            register_binary("binVar1", &bin1_)
+                    .setCausality(fmu4cpp::causality_t::OUTPUT)
+                    .setAssociatedClock(11)
+                    .setMimeType("application/octet-stream")
+                    .setMaxSize(64);
+            register_binary("binVar2", &bin2_).setCausality(fmu4cpp::causality_t::OUTPUT);
+            register_binary("binEmpty", &binEmpty_).setCausality(fmu4cpp::causality_t::OUTPUT);
 
-        // Register triggered clocks
-        auto &inClock = register_clock("inClock", 10, fmu4cpp::causality_t::INPUT);
-        inClock.setDescription("Input triggered clock");
+            // Register triggered clocks
+            auto &inClock = register_clock("inClock", 10, fmu4cpp::causality_t::INPUT);
+            inClock.setDescription("Input triggered clock");
 
-        auto &outClock = register_clock("outClock", 11, fmu4cpp::causality_t::OUTPUT);
-        outClock.setDescription("Output triggered clock");
-        outClock.setDependencies({"intVar"});
-    }
+            auto &outClock = register_clock("outClock", 11, fmu4cpp::causality_t::OUTPUT);
+            outClock.setDescription("Output triggered clock");
+            outClock.setDependencies({"intVar"});
+        }
 
-    void on_enter_event_mode() noexcept override {
-        enter_event_called = true;
-    }
+        void on_enter_event_mode() noexcept override {
+            enter_event_called = true;
+        }
 
-    void on_exit_event_mode() noexcept override {
-        exit_event_called = true;
-    }
+        void on_exit_event_mode() noexcept override {
+            exit_event_called = true;
+        }
 
-    void update_discrete_states(bool &discreteStatesNeedUpdate, bool &terminateSimulation) override {
-        update_discrete_called = true;
-        discreteStatesNeedUpdate = false;
-        terminateSimulation = false;
-    }
+        void update_discrete_states(bool &discreteStatesNeedUpdate, bool &terminateSimulation) override {
+            update_discrete_called = true;
+            discreteStatesNeedUpdate = false;
+            terminateSimulation = false;
+        }
 
-    bool do_step(double) override {
-        return true;
-    }
+        bool do_step(double) override {
+            return true;
+        }
 
-    // Expose registration methods for testing dynamic errors
-    using fmu4cpp::fmu_base::register_clock;
-};
+        // Expose registration methods for testing dynamic errors
+        using fmu4cpp::fmu_base::register_clock;
+    };
 
-} // namespace
+}// namespace
 
 fmu4cpp::model_info fmu4cpp::get_model_info() {
     fmu4cpp::model_info info;

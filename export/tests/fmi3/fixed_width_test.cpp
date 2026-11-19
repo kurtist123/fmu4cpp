@@ -3,66 +3,66 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
-#include <fmu4cpp/fmu_base.hpp>
-#include <iostream>
-#include <fstream>
 #include <cstdlib>
+#include <fmu4cpp/fmu_base.hpp>
+#include <fstream>
+#include <iostream>
 
 class FixedWidthModel : public fmu4cpp::fmu_base {
 public:
     FMU4CPP_CTOR(FixedWidthModel) {
         // Pointer registrations
         register_float32("f32_in", &f32_val)
-            .setCausality(fmu4cpp::causality_t::INPUT)
-            .setMin(0.0f)
-            .setMax(100.0f)
-            .setUnit("m/s");
+                .setCausality(fmu4cpp::causality_t::INPUT)
+                .setMin(0.0f)
+                .setMax(100.0f)
+                .setUnit("m/s");
         register_int8("i8_in", &i8_val)
-            .setCausality(fmu4cpp::causality_t::INPUT)
-            .setMin(static_cast<int8_t>(-10))
-            .setMax(static_cast<int8_t>(10));
+                .setCausality(fmu4cpp::causality_t::INPUT)
+                .setMin(static_cast<int8_t>(-10))
+                .setMax(static_cast<int8_t>(10));
         register_uint8("u8_in", &u8_val)
-            .setCausality(fmu4cpp::causality_t::INPUT)
-            .setMin(static_cast<uint8_t>(0))
-            .setMax(static_cast<uint8_t>(200));
+                .setCausality(fmu4cpp::causality_t::INPUT)
+                .setMin(static_cast<uint8_t>(0))
+                .setMax(static_cast<uint8_t>(200));
         register_int16("i16_in", &i16_val)
-            .setCausality(fmu4cpp::causality_t::INPUT)
-            .setMin(static_cast<int16_t>(-1000))
-            .setMax(static_cast<int16_t>(1000));
+                .setCausality(fmu4cpp::causality_t::INPUT)
+                .setMin(static_cast<int16_t>(-1000))
+                .setMax(static_cast<int16_t>(1000));
         register_uint16("u16_in", &u16_val)
-            .setCausality(fmu4cpp::causality_t::INPUT)
-            .setMin(static_cast<uint16_t>(0))
-            .setMax(static_cast<uint16_t>(50000));
+                .setCausality(fmu4cpp::causality_t::INPUT)
+                .setMin(static_cast<uint16_t>(0))
+                .setMax(static_cast<uint16_t>(50000));
         register_uint32("u32_in", &u32_val)
-            .setCausality(fmu4cpp::causality_t::INPUT)
-            .setMin(static_cast<uint32_t>(0))
-            .setMax(static_cast<uint32_t>(4000000000U));
+                .setCausality(fmu4cpp::causality_t::INPUT)
+                .setMin(static_cast<uint32_t>(0))
+                .setMax(static_cast<uint32_t>(4000000000U));
         register_int64("i64_in", &i64_val)
-            .setCausality(fmu4cpp::causality_t::INPUT)
-            .setMin(static_cast<int64_t>(-9000000000000000000LL))
-            .setMax(static_cast<int64_t>(9000000000000000000LL));
+                .setCausality(fmu4cpp::causality_t::INPUT)
+                .setMin(static_cast<int64_t>(-9000000000000000000LL))
+                .setMax(static_cast<int64_t>(9000000000000000000LL));
         register_uint64("u64_in", &u64_val)
-            .setCausality(fmu4cpp::causality_t::INPUT)
-            .setMin(static_cast<uint64_t>(0))
-            .setMax(static_cast<uint64_t>(18000000000000000000ULL));
+                .setCausality(fmu4cpp::causality_t::INPUT)
+                .setMin(static_cast<uint64_t>(0))
+                .setMax(static_cast<uint64_t>(18000000000000000000ULL));
 
         // Lambda registrations for outputs
         register_float32("f32_out", [this] { return f32_val * 2.0f; })
-            .setCausality(fmu4cpp::causality_t::OUTPUT);
+                .setCausality(fmu4cpp::causality_t::OUTPUT);
         register_int8("i8_out", [this] { return static_cast<int8_t>(i8_val + 1); })
-            .setCausality(fmu4cpp::causality_t::OUTPUT);
+                .setCausality(fmu4cpp::causality_t::OUTPUT);
         register_uint8("u8_out", [this] { return static_cast<uint8_t>(u8_val + 2); })
-            .setCausality(fmu4cpp::causality_t::OUTPUT);
+                .setCausality(fmu4cpp::causality_t::OUTPUT);
         register_int16("i16_out", [this] { return static_cast<int16_t>(i16_val * 2); })
-            .setCausality(fmu4cpp::causality_t::OUTPUT);
+                .setCausality(fmu4cpp::causality_t::OUTPUT);
         register_uint16("u16_out", [this] { return static_cast<uint16_t>(u16_val * 2); })
-            .setCausality(fmu4cpp::causality_t::OUTPUT);
+                .setCausality(fmu4cpp::causality_t::OUTPUT);
         register_uint32("u32_out", [this] { return u32_val + 100U; })
-            .setCausality(fmu4cpp::causality_t::OUTPUT);
+                .setCausality(fmu4cpp::causality_t::OUTPUT);
         register_int64("i64_out", [this] { return i64_val + 1000LL; })
-            .setCausality(fmu4cpp::causality_t::OUTPUT);
+                .setCausality(fmu4cpp::causality_t::OUTPUT);
         register_uint64("u64_out", [this] { return u64_val + 10000ULL; })
-            .setCausality(fmu4cpp::causality_t::OUTPUT);
+                .setCausality(fmu4cpp::causality_t::OUTPUT);
     }
 
     bool do_step(double dt) override {
@@ -92,30 +92,30 @@ std::string fmu4cpp::model_identifier() {
 FMU4CPP_INSTANTIATE(FixedWidthModel);
 
 namespace {
-void dummyLogger(fmi3InstanceEnvironment, fmi3Status status, fmi3String /*category*/, fmi3String message) {
-    if (status >= fmi3Warning) {
-        std::cout << status << ": " << message << std::endl;
+    void dummyLogger(fmi3InstanceEnvironment, fmi3Status status, fmi3String /*category*/, fmi3String message) {
+        if (status >= fmi3Warning) {
+            std::cout << status << ": " << message << std::endl;
+        }
     }
-}
-} // namespace
+}// namespace
 
 TEST_CASE("fmi3_fixed_width_types_c_abi") {
     FixedWidthModel model({});
     const auto guid = model.guid();
 
     auto c = fmi3InstantiateCoSimulation(
-        fmu4cpp::model_identifier().c_str(),
-        guid.c_str(),
-        "",
-        false,
-        true,
-        false,
-        false,
-        nullptr,
-        0,
-        nullptr,
-        dummyLogger,
-        nullptr);
+            fmu4cpp::model_identifier().c_str(),
+            guid.c_str(),
+            "",
+            false,
+            true,
+            false,
+            false,
+            nullptr,
+            0,
+            nullptr,
+            dummyLogger,
+            nullptr);
     REQUIRE(c);
 
     REQUIRE(fmi3EnterInitializationMode(c, false, 0, 0, false, 0) == fmi3OK);
@@ -324,12 +324,13 @@ TEST_CASE("fmi3_fixed_width_xml_description") {
     out.close();
 
     const std::string cmd =
-        "/root/dev/fmu_tranport/boom_ground/.venv/bin/python -c '"
-        "import lxml.etree as etree\n"
-        "schema = etree.XMLSchema(etree.parse(\"/root/dev/fmu_tranport/boom_ground/.venv/lib/python3.14/site-packages/fmpy/schema/fmi3/fmi3ModelDescription.xsd\"))\n"
-        "doc = etree.parse(\"" + xmlPath + "\")\n"
-        "schema.assertValid(doc)\n"
-        "'";
+            "/root/dev/fmu_tranport/boom_ground/.venv/bin/python -c '"
+            "import lxml.etree as etree\n"
+            "schema = etree.XMLSchema(etree.parse(\"/root/dev/fmu_tranport/boom_ground/.venv/lib/python3.14/site-packages/fmpy/schema/fmi3/fmi3ModelDescription.xsd\"))\n"
+            "doc = etree.parse(\"" +
+            xmlPath + "\")\n"
+                      "schema.assertValid(doc)\n"
+                      "'";
 
     int res = std::system(cmd.c_str());
     CHECK(res == 0);

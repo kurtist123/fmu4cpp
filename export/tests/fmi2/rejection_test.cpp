@@ -18,6 +18,7 @@ public:
         register_binary("bin", &bin_).setCausality(fmu4cpp::causality_t::INPUT);
     }
     bool do_step(double dt) override { return true; }
+
 private:
     std::vector<uint8_t> bin_{};
 };
@@ -28,6 +29,7 @@ public:
         register_float32("f32", &f32_).setCausality(fmu4cpp::causality_t::INPUT);
     }
     bool do_step(double dt) override { return true; }
+
 private:
     float f32_{0.0f};
 };
@@ -38,6 +40,7 @@ public:
         register_int8("i8", &i8_).setCausality(fmu4cpp::causality_t::INPUT);
     }
     bool do_step(double dt) override { return true; }
+
 private:
     int8_t i8_{0};
 };
@@ -48,6 +51,7 @@ public:
         register_uint64("u64", &u64_).setCausality(fmu4cpp::causality_t::INPUT);
     }
     bool do_step(double dt) override { return true; }
+
 private:
     uint64_t u64_{0};
 };
@@ -61,6 +65,7 @@ public:
         register_string("str_var", &str_).setCausality(fmu4cpp::causality_t::PARAMETER);
     }
     bool do_step(double dt) override { return true; }
+
 private:
     double real_{0.0};
     int int_{42};

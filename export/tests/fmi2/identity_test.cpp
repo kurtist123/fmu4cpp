@@ -179,13 +179,12 @@ TEST_CASE("test_identity") {
 
         REQUIRE(fmi2SetFMUstate(c, preState) == fmi2OK);
 
-        REQUIRE(readReal(c, realOut->value_reference()) == Catch::Approx(t-dt));
-        REQUIRE(readString(c, stringOut->value_reference()) == std::to_string(t-dt));
-        REQUIRE(readInt(c, integerOut->value_reference()) == counter-1);
+        REQUIRE(readReal(c, realOut->value_reference()) == Catch::Approx(t - dt));
+        REQUIRE(readString(c, stringOut->value_reference()) == std::to_string(t - dt));
+        REQUIRE(readInt(c, integerOut->value_reference()) == counter - 1);
         REQUIRE(readBool(c, booleanOut->value_reference()) == !b);
 
         REQUIRE(fmi2SetFMUstate(c, afterState) == fmi2OK);
-
     }
 
     setOutputFail(c);
@@ -199,5 +198,4 @@ TEST_CASE("test_identity") {
     REQUIRE(fmi2Terminate(c) == fmi2OK);
 
     fmi2FreeInstance(c);
-
 }
