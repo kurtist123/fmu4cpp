@@ -2,8 +2,8 @@
 #ifndef FMU4CPP_TEMPLATE_MODEL_INFO_HPP
 #define FMU4CPP_TEMPLATE_MODEL_INFO_HPP
 
-#include <string>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace fmu4cpp {

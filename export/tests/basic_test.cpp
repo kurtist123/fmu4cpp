@@ -10,13 +10,13 @@ public:
     FMU4CPP_CTOR(Model) {
 
         register_real("myReal", &real_)
-                                  .setCausality(fmu4cpp::causality_t::OUTPUT);
+                .setCausality(fmu4cpp::causality_t::OUTPUT);
         register_integer("myInteger", &integer_)
-                                  .setCausality(fmu4cpp::causality_t::OUTPUT);
+                .setCausality(fmu4cpp::causality_t::OUTPUT);
         register_boolean("myBoolean", &boolean_)
-                                  .setCausality(fmu4cpp::causality_t::OUTPUT);
+                .setCausality(fmu4cpp::causality_t::OUTPUT);
         register_string("myString", &str_)
-                                  .setCausality(fmu4cpp::causality_t::OUTPUT);
+                .setCausality(fmu4cpp::causality_t::OUTPUT);
 
         Model::reset();
     }

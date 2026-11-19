@@ -80,7 +80,7 @@ TEST_CASE("BouncingBall_test") {
 
 
     REQUIRE(fmi3GetFloat64(c, &heightVr, 1, &height, 1) == fmi3OK);
-    CHECK(height < startHeight );
+    CHECK(height < startHeight);
     fmi3Reset(c);
     REQUIRE(fmi3GetFloat64(c, &heightVr, 1, &height, 1) == fmi3OK);
     CHECK(height == Catch::Approx(startHeight));

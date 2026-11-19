@@ -7,76 +7,76 @@
 
 namespace {
 
-void testLogger(fmi3InstanceEnvironment, fmi3Status status, fmi3String /*category*/, fmi3String message) {
-    std::cout << "[testLogger status=" << status << "] " << message << std::endl;
-}
-
-class EventModel : public fmu4cpp::fmu_base {
-public:
-    FMU4CPP_CTOR(EventModel) {
-        register_clock("inClock", fmu4cpp::causality_t::INPUT);
-        register_clock("outClock", fmu4cpp::causality_t::OUTPUT);
-
-        register_integer("stepCount", &stepCount_).setCausality(fmu4cpp::causality_t::OUTPUT);
-        register_integer("eventModeEnterCount", &eventModeEnterCount_).setCausality(fmu4cpp::causality_t::OUTPUT);
-        register_integer("eventModeExitCount", &eventModeExitCount_).setCausality(fmu4cpp::causality_t::OUTPUT);
-        register_integer("discreteUpdateCount", &discreteUpdateCount_).setCausality(fmu4cpp::causality_t::OUTPUT);
-        register_integer("requestSecondIteration", &requestSecondIteration_).setCausality(fmu4cpp::causality_t::INPUT);
-        register_integer("triggerTerminate", &triggerTerminate_).setCausality(fmu4cpp::causality_t::INPUT);
-
-        EventModel::reset();
+    void testLogger(fmi3InstanceEnvironment, fmi3Status status, fmi3String /*category*/, fmi3String message) {
+        std::cout << "[testLogger status=" << status << "] " << message << std::endl;
     }
 
-    void on_enter_event_mode() noexcept override {
-        eventModeEnterCount_++;
-    }
+    class EventModel : public fmu4cpp::fmu_base {
+    public:
+        FMU4CPP_CTOR(EventModel) {
+            register_clock("inClock", fmu4cpp::causality_t::INPUT);
+            register_clock("outClock", fmu4cpp::causality_t::OUTPUT);
 
-    void on_exit_event_mode() noexcept override {
-        eventModeExitCount_++;
-    }
+            register_integer("stepCount", &stepCount_).setCausality(fmu4cpp::causality_t::OUTPUT);
+            register_integer("eventModeEnterCount", &eventModeEnterCount_).setCausality(fmu4cpp::causality_t::OUTPUT);
+            register_integer("eventModeExitCount", &eventModeExitCount_).setCausality(fmu4cpp::causality_t::OUTPUT);
+            register_integer("discreteUpdateCount", &discreteUpdateCount_).setCausality(fmu4cpp::causality_t::OUTPUT);
+            register_integer("requestSecondIteration", &requestSecondIteration_).setCausality(fmu4cpp::causality_t::INPUT);
+            register_integer("triggerTerminate", &triggerTerminate_).setCausality(fmu4cpp::causality_t::INPUT);
 
-    void update_discrete_states(bool &discreteStatesNeedUpdate, bool &terminateSimulation) override {
-        discreteUpdateCount_++;
-        if (requestSecondIteration_ > 0) {
-            discreteStatesNeedUpdate = true;
-            requestSecondIteration_ = 0; // Next iteration will converge
-        } else {
-            discreteStatesNeedUpdate = false;
+            EventModel::reset();
         }
 
-        if (triggerTerminate_ > 0) {
-            terminateSimulation = true;
+        void on_enter_event_mode() noexcept override {
+            eventModeEnterCount_++;
         }
-    }
 
-    bool do_step(double dt) override {
-        stepCount_++;
-        if (stepCount_ == 2) {
-            const auto outClock = get_clock_variable("outClock");
-            notify_output_event(outClock->value_reference());
+        void on_exit_event_mode() noexcept override {
+            eventModeExitCount_++;
         }
-        return true;
-    }
 
-    void reset() override {
-        stepCount_ = 0;
-        eventModeEnterCount_ = 0;
-        eventModeExitCount_ = 0;
-        discreteUpdateCount_ = 0;
-        requestSecondIteration_ = 0;
-        triggerTerminate_ = 0;
-    }
+        void update_discrete_states(bool &discreteStatesNeedUpdate, bool &terminateSimulation) override {
+            discreteUpdateCount_++;
+            if (requestSecondIteration_ > 0) {
+                discreteStatesNeedUpdate = true;
+                requestSecondIteration_ = 0;// Next iteration will converge
+            } else {
+                discreteStatesNeedUpdate = false;
+            }
 
-private:
-    int stepCount_{0};
-    int eventModeEnterCount_{0};
-    int eventModeExitCount_{0};
-    int discreteUpdateCount_{0};
-    int requestSecondIteration_{0};
-    int triggerTerminate_{0};
-};
+            if (triggerTerminate_ > 0) {
+                terminateSimulation = true;
+            }
+        }
 
-} // namespace
+        bool do_step(double dt) override {
+            stepCount_++;
+            if (stepCount_ == 2) {
+                const auto outClock = get_clock_variable("outClock");
+                notify_output_event(outClock->value_reference());
+            }
+            return true;
+        }
+
+        void reset() override {
+            stepCount_ = 0;
+            eventModeEnterCount_ = 0;
+            eventModeExitCount_ = 0;
+            discreteUpdateCount_ = 0;
+            requestSecondIteration_ = 0;
+            triggerTerminate_ = 0;
+        }
+
+    private:
+        int stepCount_{0};
+        int eventModeEnterCount_{0};
+        int eventModeExitCount_{0};
+        int discreteUpdateCount_{0};
+        int requestSecondIteration_{0};
+        int triggerTerminate_{0};
+    };
+
+}// namespace
 
 fmu4cpp::model_info fmu4cpp::get_model_info() {
     fmu4cpp::model_info info;
@@ -101,7 +101,7 @@ TEST_CASE("FMI3 Event Mode Negotiation Rejection") {
             "",
             false,
             true,
-            false, // eventModeUsed = false
+            false,// eventModeUsed = false
             false,
             nullptr, 0,
             nullptr, testLogger, nullptr);
@@ -131,7 +131,7 @@ TEST_CASE("FMI3 Event Mode Lifecycle and State Transitions") {
             "",
             false,
             true,
-            true, // eventModeUsed = true
+            true,// eventModeUsed = true
             false,
             nullptr, 0,
             nullptr, testLogger, nullptr);
@@ -183,9 +183,9 @@ TEST_CASE("FMI3 Event Mode Lifecycle and State Transitions") {
     CHECK(exitCount == 1);
 
     // While in StepMode:
-    // fmi3GetClock and fmi3SetClock are forbidden
-    CHECK(fmi3GetClock(c, &inClockVr, 1, &readClock) == fmi3Error);
-    CHECK(fmi3SetClock(c, &inClockVr, 1, &clockVal) == fmi3Error);
+    // fmi3GetClock and fmi3SetClock are allowed for master performance
+    CHECK(fmi3GetClock(c, &inClockVr, 1, &readClock) == fmi3OK);
+    CHECK(fmi3SetClock(c, &inClockVr, 1, &clockVal) == fmi3OK);
 
     // fmi3EnterStepMode is forbidden (only allowed from EventMode)
     CHECK(fmi3EnterStepMode(c) == fmi3Error);
@@ -346,7 +346,7 @@ TEST_CASE("FMI3 Resource Path and Exception Containment") {
     auto cNullPath = fmi3InstantiateCoSimulation(
             fmu4cpp::model_identifier().c_str(),
             guid.c_str(),
-            nullptr, // NULL resourcePath
+            nullptr,// NULL resourcePath
             false,
             true,
             true,

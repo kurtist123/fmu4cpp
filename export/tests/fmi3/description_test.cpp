@@ -1,38 +1,38 @@
 #include "fmi3/fmi3Functions.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstdlib>
 #include <fmu4cpp/fmu_base.hpp>
 #include <fstream>
-#include <cstdlib>
 
 class TestFmi3Model : public fmu4cpp::fmu_base {
 public:
     FMU4CPP_CTOR(TestFmi3Model) {
         // String variable with special characters in name/description/start value
         register_string("str_var", &s_in_)
-            .setCausality(fmu4cpp::causality_t::INPUT)
-            .setDescription("A <string> & 'more' \"quotes\"");
+                .setCausality(fmu4cpp::causality_t::INPUT)
+                .setDescription("A <string> & 'more' \"quotes\"");
 
         // Binary variable with start value and max size
         b_in_ = {0xDE, 0xAD, 0xBE, 0xEF};
         register_binary("bin_var", &b_in_)
-            .setCausality(fmu4cpp::causality_t::INPUT)
-            .setMimeType("application/octet-stream")
-            .setMaxSize(16);
+                .setCausality(fmu4cpp::causality_t::INPUT)
+                .setMimeType("application/octet-stream")
+                .setMaxSize(16);
 
         // Clocks - specify an explicit VR for clk_in (e.g. 50) to make valueReferences non-consecutive
         register_clock("clk_in", 50, fmu4cpp::causality_t::INPUT);
-        register_clock("clk_out", fmu4cpp::causality_t::OUTPUT); // VR will be 51
+        register_clock("clk_out", fmu4cpp::causality_t::OUTPUT);// VR will be 51
 
         // Variable associated with clock
         register_integer("int_clocked", &i_clocked_)
-            .setCausality(fmu4cpp::causality_t::INPUT)
-            .setAssociatedClock(50);
+                .setCausality(fmu4cpp::causality_t::INPUT)
+                .setAssociatedClock(50);
 
         // Output variable with CALCULATED initial: VR will be 53, but index is 6 (index - 1 would be 5)
         register_real("real_out", &r_out_)
-            .setCausality(fmu4cpp::causality_t::OUTPUT)
-            .setInitial(fmu4cpp::initial_t::CALCULATED);
+                .setCausality(fmu4cpp::causality_t::OUTPUT)
+                .setInitial(fmu4cpp::initial_t::CALCULATED);
     }
 
     bool do_step(double dt) override { return true; }
@@ -52,7 +52,7 @@ fmu4cpp::model_info fmu4cpp::get_model_info() {
     info.version = "1.0.0";
     info.canGetAndSetFMUstate = true;
     info.canSerializeFMUstate = true;
-    info.hasEventMode = false; // Should become true because clocks are registered
+    info.hasEventMode = false;// Should become true because clocks are registered
     return info;
 }
 
@@ -125,12 +125,13 @@ TEST_CASE("fmi3_description_tests") {
         out.close();
 
         const std::string cmd =
-            "/root/dev/fmu_tranport/boom_ground/.venv/bin/python -c '"
-            "import lxml.etree as etree\n"
-            "schema = etree.XMLSchema(etree.parse(\"/root/dev/fmu_tranport/boom_ground/.venv/lib/python3.14/site-packages/fmpy/schema/fmi3/fmi3ModelDescription.xsd\"))\n"
-            "doc = etree.parse(\"" + xmlPath + "\")\n"
-            "schema.assertValid(doc)\n"
-            "'";
+                "/root/dev/fmu_tranport/boom_ground/.venv/bin/python -c '"
+                "import lxml.etree as etree\n"
+                "schema = etree.XMLSchema(etree.parse(\"/root/dev/fmu_tranport/boom_ground/.venv/lib/python3.14/site-packages/fmpy/schema/fmi3/fmi3ModelDescription.xsd\"))\n"
+                "doc = etree.parse(\"" +
+                xmlPath + "\")\n"
+                          "schema.assertValid(doc)\n"
+                          "'";
 
         int res = std::system(cmd.c_str());
         CHECK(res == 0);

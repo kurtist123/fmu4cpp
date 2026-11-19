@@ -8,7 +8,7 @@ typedef enum {
     fmiDiscard,
     fmiError,
     fmiFatal,
-    fmiStatusUnknown // Optional: for error handling or undefined states
+    fmiStatusUnknown// Optional: for error handling or undefined states
 } fmiStatus;
 
-#endif //FMU4CPP_STATUS_HPP
+#endif//FMU4CPP_STATUS_HPP
