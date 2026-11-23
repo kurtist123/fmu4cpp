@@ -240,11 +240,8 @@ fmi3Instance fmi3InstantiateCoSimulation(
         }
 
         const auto info = fmu4cpp::get_model_info();
-        const bool modelHasClocks = !slave->get_clocks().empty();
-        const bool requiresEventMode = modelHasClocks || info.hasEventMode;
-
-        if (requiresEventMode && !eventModeUsed) {
-            logger->log(fmiFatal, "[fmu4cpp] Model requires EventMode (has clocks or hasEventMode=true), but eventModeUsed was false.");
+        if (!info.hasEventMode && eventModeUsed) {
+            logger->log(fmiFatal, "[fmu4cpp] Model does not support EventMode, but eventModeUsed was true.");
             return nullptr;
         }
 
@@ -269,6 +266,10 @@ fmi3Status fmi3EnterEventMode(fmi3Instance instance) {
     if (!instance) return fmi3Error;
     const auto component = static_cast<Fmi3Component *>(instance);
     try {
+        if (!component->eventModeUsed) {
+            component->logger->log(fmiError, "Cannot enter EventMode when eventModeUsed was set to false.");
+            return fmi3Error;
+        }
         if (component->state != Fmi3Component::State::StepMode) {
             component->logger->log(fmiError, "Invalid state for fmi3EnterEventMode. Expected StepMode.");
             return fmi3Error;
@@ -427,7 +428,7 @@ fmi3Status fmi3DoStep(fmi3Instance c,
             *earlyReturn = fmi3False;
             *terminateSimulation = fmi3False;
             *lastSuccessfulTime = currentCommunicationPoint + communicationStepSize;
-            if (component->slave->has_pending_output_events()) {
+            if (component->eventModeUsed && component->slave->has_pending_output_events()) {
                 *eventHandlingNeeded = fmi3True;
             } else {
                 *eventHandlingNeeded = fmi3False;

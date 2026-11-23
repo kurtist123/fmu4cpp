@@ -22,6 +22,10 @@ TEST_CASE("BouncingBall_test") {
     auto c = fmi3InstantiateCoSimulation("bouncing_ball", guid.c_str(), "", false, false, false, false, nullptr, 0, nullptr, nullptr, nullptr);
     REQUIRE(c);
 
+    // Model does not support EventMode (hasEventMode=false). Calling with eventModeUsed = true must fail!
+    auto cInvalid = fmi3InstantiateCoSimulation("bouncing_ball", guid.c_str(), "", false, false, true, false, nullptr, 0, nullptr, nullptr, nullptr);
+    REQUIRE(cInvalid == nullptr);
+
     REQUIRE(fmi3EnterInitializationMode(c, false, 0, 0, false, 0) == fmi3OK);
     REQUIRE(fmi3ExitInitializationMode(c) == fmi3OK);
 

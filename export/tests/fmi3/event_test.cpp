@@ -90,11 +90,11 @@ std::string fmu4cpp::model_identifier() {
 
 FMU4CPP_INSTANTIATE(EventModel);
 
-TEST_CASE("FMI3 Event Mode Negotiation Rejection") {
+TEST_CASE("FMI3 Event Mode Disabled Instantiation and Stepping") {
     EventModel model({});
     const auto guid = model.guid();
 
-    // Model has clocks and hasEventMode=true. Calling with eventModeUsed = false must fail!
+    // Model has clocks and hasEventMode=true. Calling with eventModeUsed = false must succeed in StepMode!
     auto c = fmi3InstantiateCoSimulation(
             fmu4cpp::model_identifier().c_str(),
             guid.c_str(),
@@ -106,7 +106,22 @@ TEST_CASE("FMI3 Event Mode Negotiation Rejection") {
             nullptr, 0,
             nullptr, testLogger, nullptr);
 
-    REQUIRE(c == nullptr);
+    REQUIRE(c != nullptr);
+    REQUIRE(fmi3EnterInitializationMode(c, false, 0, 0, false, 0) == fmi3OK);
+    REQUIRE(fmi3ExitInitializationMode(c) == fmi3OK);
+
+    // Cannot enter event mode when eventModeUsed is false
+    CHECK(fmi3EnterEventMode(c) == fmi3Error);
+
+    fmi3Boolean eventHandlingNeeded = fmi3False;
+    fmi3Boolean terminateSimulation = fmi3False;
+    fmi3Boolean earlyReturn = fmi3False;
+    fmi3Float64 lastSuccessfulTime = 0.0;
+    REQUIRE(fmi3DoStep(c, 0.0, 0.1, true, &eventHandlingNeeded, &terminateSimulation, &earlyReturn, &lastSuccessfulTime) == fmi3OK);
+    CHECK(eventHandlingNeeded == fmi3False);
+
+    REQUIRE(fmi3Terminate(c) == fmi3OK);
+    fmi3FreeInstance(c);
 }
 
 TEST_CASE("FMI3 Event Mode Lifecycle and State Transitions") {
