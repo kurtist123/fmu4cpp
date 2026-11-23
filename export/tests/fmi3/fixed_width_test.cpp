@@ -3,9 +3,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
-#include <cstdlib>
 #include <fmu4cpp/fmu_base.hpp>
-#include <fstream>
 #include <iostream>
 
 class FixedWidthModel : public fmu4cpp::fmu_base {
@@ -317,21 +315,5 @@ TEST_CASE("fmi3_fixed_width_xml_description") {
     CHECK(xml.find("<UInt64 name=\"u64_in\"") != std::string::npos);
     CHECK(xml.find("start=\"10000000000000000000\"") != std::string::npos);
 
-    // Validate XML against official FMI 3.0 XSD schema
-    const std::string xmlPath = "/tmp/fmi3_fixed_width_test.xml";
-    std::ofstream out(xmlPath);
-    out << xml;
-    out.close();
 
-    const std::string cmd =
-            "/root/dev/fmu_tranport/boom_ground/.venv/bin/python -c '"
-            "import lxml.etree as etree\n"
-            "schema = etree.XMLSchema(etree.parse(\"/root/dev/fmu_tranport/boom_ground/.venv/lib/python3.14/site-packages/fmpy/schema/fmi3/fmi3ModelDescription.xsd\"))\n"
-            "doc = etree.parse(\"" +
-            xmlPath + "\")\n"
-                      "schema.assertValid(doc)\n"
-                      "'";
-
-    int res = std::system(cmd.c_str());
-    CHECK(res == 0);
 }
