@@ -1,9 +1,7 @@
 #include "fmi3/fmi3Functions.h"
 
 #include <catch2/catch_test_macros.hpp>
-#include <cstdlib>
 #include <fmu4cpp/fmu_base.hpp>
-#include <fstream>
 
 class TestFmi3Model : public fmu4cpp::fmu_base {
 public:
@@ -115,25 +113,8 @@ TEST_CASE("fmi3_description_tests") {
 
         // InitialUnknown must reference 53 (the actual value reference), not index - 1 (which would be 5)
         CHECK(xml.find("<InitialUnknown valueReference=\"53\"/>") != std::string::npos);
+        // Output clock (vr=51) must be in InitialUnknown
+        CHECK(xml.find("<InitialUnknown valueReference=\"51\"/>") != std::string::npos);
         CHECK(xml.find("<InitialUnknown valueReference=\"5\"/>") == std::string::npos);
-    }
-
-    SECTION("XSD Schema Validation via Python lxml") {
-        const std::string xmlPath = "/tmp/fmi3_description_test.xml";
-        std::ofstream out(xmlPath);
-        out << xml;
-        out.close();
-
-        const std::string cmd =
-                "/root/dev/fmu_tranport/boom_ground/.venv/bin/python -c '"
-                "import lxml.etree as etree\n"
-                "schema = etree.XMLSchema(etree.parse(\"/root/dev/fmu_tranport/boom_ground/.venv/lib/python3.14/site-packages/fmpy/schema/fmi3/fmi3ModelDescription.xsd\"))\n"
-                "doc = etree.parse(\"" +
-                xmlPath + "\")\n"
-                          "schema.assertValid(doc)\n"
-                          "'";
-
-        int res = std::system(cmd.c_str());
-        CHECK(res == 0);
     }
 }

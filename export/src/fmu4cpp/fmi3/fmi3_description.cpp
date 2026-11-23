@@ -314,7 +314,10 @@ std::string fmu_base::make_description() const {
     }
 
     const auto initialUnknowns = collect_variables([](auto &v) {
-        return (v.causality() == causality_t::OUTPUT && (v.initial() == initial_t::APPROX || v.initial() == initial_t::CALCULATED)) || v.causality() == causality_t::CALCULATED_PARAMETER;
+        return (v.causality() == causality_t::OUTPUT &&
+                (v.initial() == initial_t::APPROX || v.initial() == initial_t::CALCULATED ||
+                 dynamic_cast<const ClockVariable *>(&v) != nullptr)) ||
+               v.causality() == causality_t::CALCULATED_PARAMETER;
     });
     if (!initialUnknowns.empty()) {
         for (const auto &v: initialUnknowns) {
